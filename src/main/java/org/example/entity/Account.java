@@ -5,9 +5,12 @@ import lombok.Getter;
 import lombok.ToString;
 import org.example.entity.enums.AccountType;
 import org.example.entity.enums.CurrencyCode;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Objects;
 
 @Entity
@@ -43,6 +46,21 @@ public class Account {
 
     @Column(name = "closing_date")
     private LocalDateTime closingDate;
+
+    @OneToMany(mappedBy = "account",
+            fetch = FetchType.LAZY,
+            cascade = CascadeType.REMOVE,
+            orphanRemoval = true)
+    private Collection<TransactionTemplate> transactionTemplates = new ArrayList<>();
+
+    @OneToMany(mappedBy = "account", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private Collection<AccountBalanceAudit> balanceAudits = new ArrayList<>();
+
+    @OneToMany(mappedBy = "fromAccount")
+    private Collection<BankTransaction> outgoingTransactions = new ArrayList<>();
+
+    @OneToMany(mappedBy = "toAccount")
+    private Collection<BankTransaction> incomingTransactions = new ArrayList<>();
 
     @Version
     private Long version;

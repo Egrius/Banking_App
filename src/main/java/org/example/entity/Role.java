@@ -19,7 +19,7 @@ public class Role {
     @SequenceGenerator(name = "roles_seq", sequenceName = "roles_id_seq", allocationSize = 1)
     private Long id;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, unique = true)
     private String name;
 
     @Override

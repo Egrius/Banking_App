@@ -29,6 +29,12 @@ public class HibernateConfig {
 
         configuration.addAnnotatedClass(org.example.entity.User.class);
         configuration.addAnnotatedClass(org.example.entity.Role.class);
+        configuration.addAnnotatedClass(org.example.entity.TransactionTemplate.class);
+        configuration.addAnnotatedClass(org.example.entity.BankTransaction.class);
+        configuration.addAnnotatedClass(org.example.entity.Card.class);
+        configuration.addAnnotatedClass(org.example.entity.AuditLog.class);
+        configuration.addAnnotatedClass(org.example.entity.AccountBalanceAudit.class);
+        configuration.addAnnotatedClass(org.example.entity.Account.class);
 
         return configuration.buildSessionFactory();
 

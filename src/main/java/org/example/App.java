@@ -2,13 +2,10 @@ package org.example;
 
 
 import org.example.config.HibernateConfig;
+import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 
-/**
- * Hello world!
- *
- */
 public class App 
 {
     public static void main( String[] args )
@@ -23,8 +20,8 @@ public class App
 
                 session.getTransaction().commit();
 
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (HibernateException e) {
+                throw new RuntimeException(e);
             }
 
         } catch (Exception e) {

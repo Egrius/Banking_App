@@ -91,23 +91,6 @@ public class Card {
         return Objects.hash(this.getCardNumber());
     }
 
-    public boolean isActive() {
-        return status == CardStatus.ACTIVE &&
-                expiryDate.isAfter(LocalDateTime.now());
-    }
-
-    public boolean isExpired() {
-        return expiryDate.isBefore(LocalDateTime.now());
-    }
-
-    public void block() {
-        this.status = CardStatus.BLOCKED;
-    }
-
-    public void activate() {
-        this.status = CardStatus.ACTIVE;
-    }
-
     public static class Builder {
         private User user;
         private Account account;

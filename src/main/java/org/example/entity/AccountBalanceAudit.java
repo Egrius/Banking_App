@@ -13,7 +13,7 @@ import java.util.Objects;
 @Entity
 @Table(name = "account_balance_audit")
 @Getter
-@ToString(exclude = {"account", "transaction"})
+@ToString(exclude = {"account"})
 public class AccountBalanceAudit {
     @Id
     @GeneratedValue(
