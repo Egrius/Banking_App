@@ -19,8 +19,11 @@ public class User {
     @SequenceGenerator(name = "users_seq", sequenceName = "users_id_seq", allocationSize = 1)
     private Long id;
 
-    @Column(name = "username", nullable = false)
-    private String username;
+    @Column(name = "first_name", nullable = false)
+    private String firstName;
+
+    @Column(name = "last_name", nullable = false)
+    private String lastName;
 
     @Column(name = "email", nullable = false, unique = true)
     private String email;
@@ -48,7 +51,8 @@ public class User {
     protected User() {}
 
     protected User(Builder builder) {
-        this.username = builder.username;
+        this.firstName = builder.firstName;
+        this.lastName = builder.lastName;
         this.email = builder.email;
         this.passwordHash = builder.passwordHash;
         this.createdAt = LocalDateTime.now();
@@ -64,8 +68,7 @@ public class User {
         if (!(o instanceof User)) return false;
         User user = (User) o;
         if(user.getId() == null || this.getId() == null) {
-            return this.getUsername().equals(user.getUsername()) &&
-                    this.getEmail().equals(user.getEmail());
+            return this.getEmail().equals(user.getEmail());
         }
         else {
             return this.getId().equals(user.getId());
@@ -78,18 +81,25 @@ public class User {
         if (this.getId() != null) {
             return Objects.hash(this.getId());
         }
-        return Objects.hash(this.getUsername(), this.getEmail());
+        return Objects.hash(this.getEmail());
     }
 
     public static class Builder {
-        private String username;
+        private String firstName;
+        private String lastName;
         private String email;
         private String passwordHash;
 
-        public Builder username(String username) {
-            this.username = username;
+        public Builder firstName(String firstName) {
+            this.firstName = firstName;
             return this;
         }
+
+        public Builder lastName(String lastName) {
+            this.lastName = lastName;
+            return this;
+        }
+
 
         public Builder email(String email) {
             this.email = email;

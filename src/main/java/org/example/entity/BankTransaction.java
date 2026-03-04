@@ -168,11 +168,11 @@ public class BankTransaction {
         }
     }
 
-
     @Override
     public boolean equals(Object o) {
+        if (this == o) return true;
         if (!(o instanceof BankTransaction that)) return false;
-        return Objects.equals(id, that.id);
+        return Objects.equals(getId(), that.getId());
     }
 
     @Override

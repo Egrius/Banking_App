@@ -12,7 +12,7 @@ import java.util.Objects;
 @Entity
 @Table(name = "audit_log")
 @Getter
-@ToString(exclude = {"user"})
+@ToString(exclude = {"user", "transaction"})
 public class AuditLog {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "audit_log_id_generator")
@@ -25,10 +25,10 @@ public class AuditLog {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "username")
-    private String username;  // имя на момент действия
+    @Column(name = "email")
+    private String email;
 
-    @Column(name = "user_ip", length = 45)  // IPv6-ready
+    @Column(name = "user_ip", length = 45)
     private String userIp;
 
     @Column(name = "user_agent", length = 500)
@@ -41,7 +41,7 @@ public class AuditLog {
     private String entityType;  // ACCOUNT, CARD, TRANSACTION, USER, TEMPLATE...
 
     @Column(name = "entity_id")
-    private Long entityId;  // ID сущности, с которой работали
+    private Long entityId;
 
     @Column(name = "old_value", columnDefinition = "TEXT")
     private String oldValue;  // JSON с данными ДО
@@ -76,7 +76,7 @@ public class AuditLog {
 
     private AuditLog(Builder builder) {
         this.user = builder.user;
-        this.username = builder.username;
+        this.email = builder.email;
         this.userIp = builder.userIp;
         this.userAgent = builder.userAgent;
         this.actionType = builder.actionType;
@@ -112,7 +112,7 @@ public class AuditLog {
 
     public static class Builder {
         private User user;
-        private String username;
+        private String email;
         private String userIp;
         private String userAgent;
         private String actionType;
@@ -130,14 +130,14 @@ public class AuditLog {
         public Builder user(User user) {
             this.user = user;
             // автоматически заполняем username из user, если он есть
-            if (user != null && this.username == null) {
-                this.username = user.getUsername();
+            if (user != null && this.email == null) {
+                this.email = user.getEmail();
             }
             return this;
         }
 
-        public Builder username(String username) {
-            this.username = username;
+        public Builder username(String email) {
+            this.email = email;
             return this;
         }
 
