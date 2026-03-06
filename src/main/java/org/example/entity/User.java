@@ -2,6 +2,7 @@ package org.example.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 
 import java.time.LocalDateTime;
@@ -10,6 +11,7 @@ import java.util.*;
 @Entity
 @Table(name = "users")
 @Getter
+@Setter
 @ToString(exclude = {"roles", "passwordHash"})
 public class User {
     @Id

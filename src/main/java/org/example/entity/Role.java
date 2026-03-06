@@ -3,6 +3,7 @@ package org.example.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 
 import java.util.Objects;
@@ -10,6 +11,7 @@ import java.util.Objects;
 @Entity
 @Table(name = "roles")
 @Getter
+@Setter
 @ToString
 public class Role {
     @Id
@@ -21,6 +23,14 @@ public class Role {
 
     @Column(name = "name", nullable = false, unique = true)
     private String name;
+
+    protected Role() {
+
+    }
+
+    public Role(String name) {
+        this.name = name;
+    }
 
     @Override
     public boolean equals(Object o) {
