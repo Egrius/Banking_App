@@ -13,12 +13,12 @@ import java.util.Optional;
 
 public class RoleDao extends BaseDaoImpl<Role, Long> {
 
-    public RoleDao(SessionFactory sessionFactory) {
-        super(Role.class, sessionFactory);
+    public RoleDao() {
+        super(Role.class);
     }
 
-    public Optional<Role> findByName(String name) {
-        EntityManager em = getEntityManager();
+    public Optional<Role> findByName(EntityManager em,
+                                     String name) {
 
         try {
             return Optional.of( em.createQuery("SELECT r FROM Role r WHERE r.name = :name", Role.class)
@@ -27,26 +27,23 @@ public class RoleDao extends BaseDaoImpl<Role, Long> {
 
         } catch (NoResultException e) {
             return Optional.empty();
-        } finally {
-            em.close();
         }
     }
 
-    public List<Role> findAll() {
-        EntityManager em = getEntityManager();
+    public List<Role> findAll(EntityManager em) {
         try{
             return em.createQuery("SELECT r FROM Role r", Role.class)
                     .getResultList();
         } catch (NoResultException e) {
             return Collections.emptyList();
-        } finally {
-            em.close();
         }
     }
 
-    public List<User> findUsersByRoleId(Long roleId) {
-        EntityManager em = getEntityManager();
-        return em.createQuery("SELECT u.user_id from user_roles u WHERE u.role_id = :roleId")
+    public List<User> findUsersByRoleId(Long roleId, EntityManager em) {
+        return em.createQuery("SELECT u FROM User u JOIN u.roles r WHERE r.id = :roleId", User.class)
+                .setParameter("roleId", roleId)
+                .getResultList();
+
     }
 
 }

@@ -67,6 +67,15 @@ public class Account {
 
     protected Account() {}
 
+    public Account(User user, String accountNumber, BigDecimal balance, CurrencyCode currencyCode,  AccountType accountType) {
+        this.user = user;
+        this.accountNumber = accountNumber;
+        this.balance = balance;
+        this.currencyCode = currencyCode;
+        this.accountType = accountType;
+        this.openingDate = LocalDateTime.now();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

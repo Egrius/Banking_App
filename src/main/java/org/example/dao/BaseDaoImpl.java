@@ -5,75 +5,41 @@ import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
 import java.util.Optional;
 
+
 public abstract class BaseDaoImpl<T, ID> implements BaseDao<T, ID> {
 
     protected final Class<T> entityClass;
-    protected final EntityManagerFactory entityManagerFactory;
 
-    public BaseDaoImpl(Class<T> entityClass, EntityManagerFactory entityManagerFactory) {
+    public BaseDaoImpl(Class<T> entityClass) {
         this.entityClass = entityClass;
-        this.entityManagerFactory = entityManagerFactory;
     }
 
-    protected EntityManager getEntityManager() {
-        return entityManagerFactory.createEntityManager();
+    // Все методы принимают EntityManager извне
+    @Override
+    public Optional<T> findById(ID id, EntityManager em) {
+        return Optional.ofNullable(em.find(entityClass, id));
     }
 
     @Override
-    public Optional<T> findById(ID id) {
-        EntityManager em = getEntityManager();
-        try {
-            return Optional.ofNullable(em.find(entityClass, id));
-        } finally {
-            em.close();
-        }
+    public void save(T entity, EntityManager em) {
+        // НЕТ управления транзакцией! Только операция
+        em.persist(entity);
     }
 
     @Override
-    public void save(T entity) {
-        EntityManager em = getEntityManager();
-        EntityTransaction tx = em.getTransaction();
-        try {
-            tx.begin();
-            em.persist(entity);
-            tx.commit();
-        } catch (Exception e) {
-            if (tx.isActive()) tx.rollback();
-            throw e;
-        } finally {
-            em.close();
-        }
+    public void update(T entity, EntityManager em) {
+        // НЕТ управления транзакцией! Только операция
+        em.merge(entity);
     }
 
     @Override
-    public void update(T entity) {
-        EntityManager em = getEntityManager();
-        EntityTransaction tx = em.getTransaction();
-        try {
-            tx.begin();
-            em.merge(entity);
-            tx.commit();
-        } catch (Exception e) {
-            if (tx.isActive()) tx.rollback();
-            throw e;
-        } finally {
-            em.close();
-        }
+    public void delete(T entity, EntityManager em) {
+        // НЕТ управления транзакцией! Только операция
+        em.remove(entity);
     }
 
-    @Override
-    public void delete(T entity) {
-        EntityManager em = getEntityManager();
-        EntityTransaction tx = em.getTransaction();
-        try {
-            tx.begin();
-            em.remove(entity);
-            tx.commit();
-        } catch (Exception e) {
-            if (tx.isActive()) tx.rollback();
-            throw e;
-        } finally {
-            em.close();
-        }
+    // Дополнительный удобный метод
+    public void deleteById(ID id, EntityManager em) {
+        findById(id, em).ifPresent(entity -> delete(entity, em));
     }
 }

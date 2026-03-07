@@ -52,7 +52,7 @@ public class TransactionTemplate {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "default_account_id")
-    private Account defaultAccount; // Счёт списания по умолчанию (может быть null)
+        private Account defaultAccount; // Счёт списания по умолчанию (может быть null)
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

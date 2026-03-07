@@ -59,10 +59,6 @@ public class UserService {
                 .toList();
     }
 
-    public UserReadDto findByUsername(String username) {
-        return null;
-    }
-
     public UserReadDto updateUser(Long userId, UserUpdateDto updateDto) {
         User userToUpdate = userDao.findById(userId).orElseThrow(
                 () -> new EntityNotFoundException("Не найден пользователь для обновления с id: " + userId));
@@ -100,18 +96,6 @@ public class UserService {
 
         userDao.delete(userToDelete);
         log.info("Пользователь c id {} успешно удален", userId);
-    }
-
-    public boolean existsByUsername(String username) {
-        return false;
-    }
-
-    public boolean existsByEmail(String email) {
-        return false;
-    }
-
-    public long countUsers() {
-        return 0;
     }
 
     public List<UserReadDto> findUsersWithAccounts() {

@@ -9,6 +9,7 @@ import org.example.dto.role.RoleReadDto;
 import org.example.dto.user.UserReadDto;
 import org.example.entity.Role;
 import org.example.entity.User;
+import org.example.mapper.UserReadMapper;
 
 import java.util.List;
 import java.util.Set;
@@ -20,6 +21,7 @@ public class RoleService {
 
     private final RoleDao roleDao;
     private final UserDao userDao;
+    private final UserReadMapper userReadMapper;
 
     public void createRole(String roleName) {
         if(roleName != null && !roleName.isBlank()) {
