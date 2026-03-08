@@ -7,11 +7,11 @@ import java.util.Optional;
 
 public interface BaseDao <T, ID> {
 
-    Optional<T> findById(ID id, EntityManager em);
+    Optional<T> findById(EntityManager em, ID id);
 
-    void save(T entity, EntityManager em);
+    void save(EntityManager em, T entity);
 
-    void update(T entity, EntityManager em);
+    void update(EntityManager em, T entity);
 
-    void delete(T entity, EntityManager em);
+    void delete(EntityManager em, T entity);
 }

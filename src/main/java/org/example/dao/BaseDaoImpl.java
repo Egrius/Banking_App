@@ -14,32 +14,27 @@ public abstract class BaseDaoImpl<T, ID> implements BaseDao<T, ID> {
         this.entityClass = entityClass;
     }
 
-    // Все методы принимают EntityManager извне
     @Override
-    public Optional<T> findById(ID id, EntityManager em) {
+    public Optional<T> findById(EntityManager em, ID id) {
         return Optional.ofNullable(em.find(entityClass, id));
     }
 
     @Override
-    public void save(T entity, EntityManager em) {
-        // НЕТ управления транзакцией! Только операция
+    public void save(EntityManager em, T entity) {
         em.persist(entity);
     }
 
     @Override
-    public void update(T entity, EntityManager em) {
-        // НЕТ управления транзакцией! Только операция
+    public void update(EntityManager em, T entity) {
         em.merge(entity);
     }
 
     @Override
-    public void delete(T entity, EntityManager em) {
-        // НЕТ управления транзакцией! Только операция
+    public void delete(EntityManager em, T entity) {
         em.remove(entity);
     }
 
-    // Дополнительный удобный метод
-    public void deleteById(ID id, EntityManager em) {
-        findById(id, em).ifPresent(entity -> delete(entity, em));
+    public void deleteById(EntityManager em, ID id) {
+        findById(em, id).ifPresent(entity -> delete(em, entity));
     }
 }

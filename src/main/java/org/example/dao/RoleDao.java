@@ -39,11 +39,23 @@ public class RoleDao extends BaseDaoImpl<Role, Long> {
         }
     }
 
-    public List<User> findUsersByRoleId(Long roleId, EntityManager em) {
+    public List<User> findUsersByRoleId(EntityManager em, Long roleId) {
         return em.createQuery("SELECT u FROM User u JOIN u.roles r WHERE r.id = :roleId", User.class)
                 .setParameter("roleId", roleId)
                 .getResultList();
 
+    }
+
+    public boolean userWithThisRoleExist(EntityManager em, Long roleId) {
+        try {
+            em.createQuery("SELECT 1 FROM User u JOIN u.roles r WHERE r.id := roleId")
+                    .setParameter("roleId", roleId)
+                    .getSingleResult();
+
+            return true;
+        } catch (NoResultException e) {
+            return false;
+        }
     }
 
 }

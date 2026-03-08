@@ -9,12 +9,11 @@ import java.util.Optional;
 
 public class UserDao extends BaseDaoImpl<User, Long> {
 
-    public UserDao(EntityManagerFactory entityManagerFactory) {
-        super(User.class, entityManagerFactory);
+    public UserDao() {
+        super(User.class);
     }
 
-    public Optional<User> findByEmail(String email) {
-        EntityManager em = getEntityManager();
+    public Optional<User> findByEmail(EntityManager em, String email) {
 
         try {
             return em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
@@ -26,8 +25,8 @@ public class UserDao extends BaseDaoImpl<User, Long> {
         }
     }
 
-    public List<User> findAll() {
-        EntityManager em = getEntityManager();
+    public List<User> findAll(EntityManager em) {
+
         try {
             return em.createQuery("SELECT u FROM User u", User.class)
                     .getResultList();
