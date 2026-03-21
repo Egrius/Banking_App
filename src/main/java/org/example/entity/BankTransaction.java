@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.ToString;
 import org.example.entity.enums.Status;
+import org.example.entity.enums.TransactionStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -32,7 +33,7 @@ public class BankTransaction {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private Status status;
+    private TransactionStatus status;
 
     @Column(name = "failure_reason")
     private String failureReason;
@@ -87,7 +88,7 @@ public class BankTransaction {
         private Account fromAccount;
         private Account toAccount;
         private BigDecimal amount;
-        private Status status;
+        private TransactionStatus status;
         private String failureReason;
         private Integer retryCount;
         private BigDecimal fromBalanceBefore;
@@ -113,7 +114,7 @@ public class BankTransaction {
             return this;
         }
 
-        public Builder status(Status status) {
+        public Builder status(TransactionStatus status) {
             this.status = status;
             return this;
         }

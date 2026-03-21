@@ -2,9 +2,11 @@ package org.example.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 import org.example.entity.enums.AccountType;
 import org.example.entity.enums.CurrencyCode;
+import org.example.entity.enums.Status;
 import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
@@ -16,6 +18,7 @@ import java.util.Objects;
 @Entity
 @Table(name = "accounts")
 @Getter
+@Setter
 @ToString(exclude = {"user"})
 public class Account {
     @Id
@@ -43,6 +46,10 @@ public class Account {
 
     @Column(name = "opening_date", nullable = false)
     private LocalDateTime openingDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private Status status;
 
     @Column(name = "closing_date")
     private LocalDateTime closingDate;
@@ -74,6 +81,7 @@ public class Account {
         this.currencyCode = currencyCode;
         this.accountType = accountType;
         this.openingDate = LocalDateTime.now();
+        this.status = Status.ACTIVE;
     }
 
     @Override

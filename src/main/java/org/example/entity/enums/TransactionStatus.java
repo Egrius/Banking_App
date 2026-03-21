@@ -1,11 +1,12 @@
 package org.example.entity.enums;
 
-public enum Status {
-    ACTIVE("ACTIVE"), BLOCKED("BLOCKED"), CLOSED("CLOSED");
+public enum TransactionStatus {
+
+    PENDING("PENDING"), SUCCESS("SUCCESS"), FAILED("FAILED");
 
     private final String abbreviation;
 
-    Status(String abbreviation) {
+    TransactionStatus(String abbreviation) {
         this.abbreviation = abbreviation;
     }
 

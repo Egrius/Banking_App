@@ -90,6 +90,7 @@ public class UserService {
         }
     }
 
+    // Добавить пагинацию, хотя пока избыточно
     public List<UserReadDto> findAll() {
         EntityManager em = emf.createEntityManager();
 
@@ -104,9 +105,13 @@ public class UserService {
     }
 
     public UserReadDto updateUser(Long userId, UserUpdateDto updateDto) {
+
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
         try {
+
+            ValidatorUtil.validate(updateDto);
+
             tx.begin();
 
             User userToUpdate = userDao.findById(em, userId).orElseThrow(
@@ -196,5 +201,4 @@ public class UserService {
             em.close();
         }
     }
-
 }

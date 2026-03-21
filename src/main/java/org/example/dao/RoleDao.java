@@ -1,11 +1,9 @@
 package org.example.dao;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.NoResultException;
 import org.example.entity.Role;
 import org.example.entity.User;
-import org.hibernate.SessionFactory;
 
 import java.util.Collections;
 import java.util.List;

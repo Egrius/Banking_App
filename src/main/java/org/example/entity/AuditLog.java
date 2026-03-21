@@ -3,11 +3,12 @@ package org.example.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.ToString;
+import org.example.entity.enums.ActionType;
 import org.example.entity.enums.AuditStatus;
+import org.example.entity.enums.EntityType;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
-
 
 @Entity
 @Table(name = "audit_log")
@@ -34,11 +35,13 @@ public class AuditLog {
     @Column(name = "user_agent", length = 500)
     private String userAgent;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "action_type", nullable = false, length = 50)
-    private String actionType;  // LOGIN, TRANSFER, CREATE_TEMPLATE...
+    private ActionType actionType;  // LOGIN, TRANSFER, CREATE_TEMPLATE...
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "entity_type", length = 50)
-    private String entityType;  // ACCOUNT, CARD, TRANSACTION, USER, TEMPLATE...
+    private EntityType entityType;  // ACCOUNT, CARD, TRANSACTION, USER, TEMPLATE...
 
     @Column(name = "entity_id")
     private Long entityId;
@@ -70,7 +73,7 @@ public class AuditLog {
     private Long executionTimeMs;  // сколько миллисекунд заняло действие
 
     @Version
-    private Long version;
+    private Long version; // под вопросом
 
     protected AuditLog() {}
 
@@ -115,8 +118,8 @@ public class AuditLog {
         private String email;
         private String userIp;
         private String userAgent;
-        private String actionType;
-        private String entityType;
+        private ActionType actionType;
+        private EntityType entityType;
         private Long entityId;
         private String oldValue;
         private String newValue;
@@ -151,12 +154,12 @@ public class AuditLog {
             return this;
         }
 
-        public Builder actionType(String actionType) {
+        public Builder actionType(ActionType actionType) {
             this.actionType = actionType;
             return this;
         }
 
-        public Builder entityType(String entityType) {
+        public Builder entityType(EntityType entityType) {
             this.entityType = entityType;
             return this;
         }
@@ -207,7 +210,7 @@ public class AuditLog {
         }
 
         public AuditLog build() {
-            if (actionType == null || actionType.trim().isEmpty()) {
+            if (actionType == null) {
                 throw new IllegalStateException("actionType must not be empty");
             }
             if (status == null) {
