@@ -6,7 +6,8 @@ import org.hibernate.validator.constraints.Length;
 
 @AtLeastOneFieldNotBlank
 public record UserUpdateDto(
-        @NotBlank(message = "Имя не может быть пустым")
+        @Length(max = 100, message = "Имя слишком длинное")
+        @Length(min = 1, message = "Имя слишком короткое")
         String firstNameUpdated,
 
         @Length(max = 100, message = "Фамилия слишком длинная")

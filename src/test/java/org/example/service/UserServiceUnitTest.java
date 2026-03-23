@@ -1,16 +1,12 @@
 package org.example.service;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.EntityTransaction;
+import jakarta.persistence.*;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.example.dao.UserDao;
+import org.example.dto.response.ValidationErrorResponse;
 import org.example.dto.role.RoleReadDto;
-import org.example.dto.user.UserCreateDto;
-import org.example.dto.user.UserLoginDto;
-import org.example.dto.user.UserReadDto;
-import org.example.dto.user.UserUpdateDto;
+import org.example.dto.user.*;
 import org.example.entity.Role;
 import org.example.entity.User;
 import org.example.exception.CustomValidationException;
@@ -30,6 +26,7 @@ import org.mockito.verification.VerificationMode;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Optional;
 
@@ -588,12 +585,28 @@ class UserServiceUnitTest {
             }
         }
 
-
-        void updateUser_shouldUpdate_whenNotAllFieldsAreFilled() {
-
-        }
-
+        @Test
         void updateUser_shouldThrowValidationExceptionWhenDataIsInvalid() {
+            UserUpdateDto updateDto = new UserUpdateDto("A", "B");
+            final Long ID_TO_UPDATE = 1L;
+
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+
+            try(MockedStatic<ValidatorUtil> mockValidator = Mockito.mockStatic(ValidatorUtil.class)) {
+                mockValidator.when(() -> ValidatorUtil.validate(updateDto))
+                        .thenThrow(new CustomValidationException(new ValidationErrorResponse(List.of())));
+
+                assertThatThrownBy(() -> userService.updateUser(ID_TO_UPDATE, updateDto))
+                        .isInstanceOf(CustomValidationException.class);
+            }
+
+            verify(mockTx, never()).begin();
+            verify(userDao, never()).findById(any(EntityManager.class), any(Long.class));
+            verify(userUpdateMapper, never()).map(any(UserUpdateDto.class), any(User.class));
+            verify(userDao, never()).update(any(EntityManager.class), any(User.class));
+
 
         }
 
@@ -601,14 +614,342 @@ class UserServiceUnitTest {
 
     @Nested
     class ChangePasswordTests {
+
+        private final Long USER_ID = 1L;
+        private final String OLD_PASSWORD = "oldPassword123";
+        private final String NEW_PASSWORD = "newPassword456";
+        private final String HASHED_OLD_PASSWORD = "hashedOldPassword";
+        private final String HASHED_NEW_PASSWORD = "hashedNewPassword";
+
+        @Test
         void changePassword_shouldChangeIfDataIsCorrect_andUserFound() {
 
+            PasswordChangeDto passwordChangeDto = new PasswordChangeDto(OLD_PASSWORD, NEW_PASSWORD, NEW_PASSWORD);
+            User user = User.builder().build();
+            user.setId(USER_ID);
+            user.setPasswordHash(HASHED_OLD_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.of(user));
+
+            try (MockedStatic<ValidatorUtil> mockValidator = Mockito.mockStatic(ValidatorUtil.class);
+                 MockedStatic<PasswordUtil> mockPasswordUtil = Mockito.mockStatic(PasswordUtil.class)) {
+
+                mockValidator.when(() -> ValidatorUtil.validate(passwordChangeDto))
+                        .thenAnswer(invocation -> null);
+
+                mockPasswordUtil.when(() -> PasswordUtil.verify(OLD_PASSWORD, HASHED_OLD_PASSWORD))
+                        .thenReturn(true);
+                mockPasswordUtil.when(() -> PasswordUtil.hash(NEW_PASSWORD))
+                        .thenReturn(HASHED_NEW_PASSWORD);
+
+                userService.changePassword(USER_ID, passwordChangeDto);
+
+                mockValidator.verify(() -> ValidatorUtil.validate(passwordChangeDto), times(1));
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(userDao).update(mockEm, user);
+                verify(mockTx).begin();
+                verify(mockTx).commit();
+                assertEquals(HASHED_NEW_PASSWORD, user.getPasswordHash());
+            }
+        }
+
+        @Test
+        void changePassword_shouldThrowEntityNotFoundException_whenUserNotFound() {
+
+            PasswordChangeDto passwordChangeDto = new PasswordChangeDto(OLD_PASSWORD, NEW_PASSWORD, NEW_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.empty());
+            when(mockTx.isActive()).thenReturn(true);
+
+            try (MockedStatic<ValidatorUtil> mockValidator = Mockito.mockStatic(ValidatorUtil.class)) {
+                mockValidator.when(() -> ValidatorUtil.validate(passwordChangeDto))
+                        .thenAnswer(invocation -> null);
+
+                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto))
+                        .isInstanceOf(EntityNotFoundException.class)
+                        .hasMessage("Пользователь не найден");
+
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(mockTx).begin();
+                verify(userDao, never()).update(any(EntityManager.class), any(User.class));
+                verify(mockTx, never()).commit();
+                verify(mockTx).rollback();
+            }
+        }
+
+        @Test
+        void changePassword_shouldThrowValidationException_whenDataIsInvalid() {
+
+            PasswordChangeDto invalidDto = new PasswordChangeDto("", "", "");
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+
+            try (MockedStatic<ValidatorUtil> mockValidator = Mockito.mockStatic(ValidatorUtil.class)) {
+                mockValidator.when(() -> ValidatorUtil.validate(invalidDto))
+                        .thenThrow(new CustomValidationException(new ValidationErrorResponse(List.of())));
+
+                assertThatThrownBy(() -> userService.changePassword(USER_ID, invalidDto))
+                        .isInstanceOf(CustomValidationException.class);
+
+                verify(userDao, never()).findById(any(EntityManager.class), any(Long.class));
+                verify(userDao, never()).update(any(EntityManager.class), any(User.class));
+                verify(mockTx, never()).begin();
+                verify(mockTx, never()).commit();
+            }
+        }
+
+        @Test
+        void changePassword_shouldThrowIllegalArgumentException_whenOldPasswordIsIncorrect() {
+
+            PasswordChangeDto passwordChangeDto = new PasswordChangeDto(OLD_PASSWORD, NEW_PASSWORD, NEW_PASSWORD);
+            User user = User.builder().build();
+            user.setId(USER_ID);
+            user.setPasswordHash(HASHED_OLD_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.of(user));
+
+            try (MockedStatic<ValidatorUtil> mockValidator = Mockito.mockStatic(ValidatorUtil.class);
+                 MockedStatic<PasswordUtil> mockPasswordUtil = Mockito.mockStatic(PasswordUtil.class)) {
+
+                mockValidator.when(() -> ValidatorUtil.validate(passwordChangeDto))
+                        .thenAnswer(invocation -> null);
+
+                mockPasswordUtil.when(() -> PasswordUtil.verify(OLD_PASSWORD, HASHED_OLD_PASSWORD))
+                        .thenReturn(false);
+
+                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("Передан неправильный пароль");
+
+                mockPasswordUtil.verify(() -> PasswordUtil.verify(OLD_PASSWORD, HASHED_OLD_PASSWORD), times(1));
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(userDao, never()).update(any(EntityManager.class), any(User.class));
+                verify(mockTx).begin();
+                verify(mockTx).rollback();
+                verify(mockTx, never()).commit();
+            }
+        }
+
+        @Test
+        void changePassword_shouldHandleOptimisticLockException_andThrowConcurrentModificationException() {
+
+            PasswordChangeDto passwordChangeDto = new PasswordChangeDto(OLD_PASSWORD, NEW_PASSWORD, NEW_PASSWORD);
+            User user = User.builder().build();
+            user.setId(USER_ID);
+            user.setPasswordHash(HASHED_OLD_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.of(user));
+
+            try (MockedStatic<ValidatorUtil> mockValidator = Mockito.mockStatic(ValidatorUtil.class);
+                 MockedStatic<PasswordUtil> mockPasswordUtil = Mockito.mockStatic(PasswordUtil.class)) {
+
+                mockValidator.when(() -> ValidatorUtil.validate(passwordChangeDto))
+                        .thenAnswer(invocation -> null);
+
+                mockPasswordUtil.when(() -> PasswordUtil.verify(OLD_PASSWORD, HASHED_OLD_PASSWORD))
+                        .thenReturn(true);
+                mockPasswordUtil.when(() -> PasswordUtil.hash(NEW_PASSWORD))
+                        .thenReturn(HASHED_NEW_PASSWORD);
+
+                doThrow(new OptimisticLockException()).when(userDao).update(mockEm, user);
+
+                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto))
+                        .isInstanceOf(ConcurrentModificationException.class)
+                        .hasMessage("Пользователь был изменен. Обновите данные и повторите попытку.");
+
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(userDao).update(mockEm, user);
+                verify(mockTx).begin();
+                verify(mockTx).rollback();
+                verify(mockTx, never()).commit();
+            }
+        }
+
+        @Test
+        void changePassword_shouldRollbackTransaction_onAnyException() {
+
+            PasswordChangeDto passwordChangeDto = new PasswordChangeDto(OLD_PASSWORD, NEW_PASSWORD, NEW_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+
+            try (MockedStatic<ValidatorUtil> mockValidator = Mockito.mockStatic(ValidatorUtil.class)) {
+                mockValidator.when(() -> ValidatorUtil.validate(passwordChangeDto))
+                        .thenThrow(new RuntimeException("Unexpected error"));
+
+                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto))
+                        .isInstanceOf(RuntimeException.class);
+
+                verify(mockTx).rollback();
+                verify(mockTx, never()).commit();
+                verify(userDao, never()).findById(any(EntityManager.class), any(Long.class));
+            }
         }
     }
 
     @Nested
     class DeleteUserTests {
 
-    }
+        private final Long USER_ID = 1L;
+        private final String CORRECT_PASSWORD = "correctPassword123";
+        private final String INCORRECT_PASSWORD = "wrongPassword456";
+        private final String HASHED_PASSWORD = "hashedCorrectPassword";
 
+        @Test
+        void deleteUser_shouldDelete_ifPasswordAndIdCorrect() {
+
+            User user = User.builder().build();
+            user.setId(USER_ID);
+            user.setPasswordHash(HASHED_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.of(user));
+
+            try (MockedStatic<PasswordUtil> mockPasswordUtil = Mockito.mockStatic(PasswordUtil.class)) {
+                mockPasswordUtil.when(() -> PasswordUtil.verify(CORRECT_PASSWORD, HASHED_PASSWORD))
+                        .thenReturn(true);
+
+                userService.deleteUser(USER_ID, CORRECT_PASSWORD);
+
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(userDao).delete(mockEm, user);
+                verify(mockTx).begin();
+                verify(mockTx).commit();
+                verify(mockTx, never()).rollback();
+
+                mockPasswordUtil.verify(() -> PasswordUtil.verify(CORRECT_PASSWORD, HASHED_PASSWORD), times(1));
+            }
+        }
+
+        @Test
+        void deleteUser_shouldThrow_andRollback_ifPasswordIncorrectAndIdCorrect() {
+
+            User user = User.builder().build();
+            user.setId(USER_ID);
+            user.setPasswordHash(HASHED_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.of(user));
+
+            try (MockedStatic<PasswordUtil> mockPasswordUtil = Mockito.mockStatic(PasswordUtil.class)) {
+                mockPasswordUtil.when(() -> PasswordUtil.verify(INCORRECT_PASSWORD, HASHED_PASSWORD))
+                        .thenReturn(false);
+
+                assertThatThrownBy(() -> userService.deleteUser(USER_ID, INCORRECT_PASSWORD))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("Неверный пароль");
+
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(userDao, never()).delete(any(EntityManager.class), any(User.class));
+                verify(mockTx).begin();
+                verify(mockTx).rollback();
+                verify(mockTx, never()).commit();
+
+                mockPasswordUtil.verify(() -> PasswordUtil.verify(INCORRECT_PASSWORD, HASHED_PASSWORD), times(1));
+            }
+        }
+
+        @Test
+        void deleteUser_shouldThrow_andRollback_ifPasswordCorrectAndIdIncorrect() {
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.empty());
+
+            try (MockedStatic<PasswordUtil> mockPasswordUtil = Mockito.mockStatic(PasswordUtil.class)) {
+
+                mockPasswordUtil.when(() -> PasswordUtil.verify(anyString(), anyString()))
+                        .thenReturn(true);
+
+                assertThatThrownBy(() -> userService.deleteUser(USER_ID, CORRECT_PASSWORD))
+                        .isInstanceOf(EntityNotFoundException.class)
+                        .hasMessage("Не найден пользователь для удаления с id: " + USER_ID);
+
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(userDao, never()).delete(any(EntityManager.class), any(User.class));
+                verify(mockTx).begin();
+                verify(mockTx).rollback();
+                verify(mockTx, never()).commit();
+
+                mockPasswordUtil.verify(() -> PasswordUtil.verify(anyString(), anyString()), never());
+            }
+        }
+
+        @Test
+        void deleteUser_shouldHandleDatabaseException_andRollback() {
+
+            User user = User.builder().build();
+            user.setId(USER_ID);
+            user.setPasswordHash(HASHED_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.of(user));
+
+            try (MockedStatic<PasswordUtil> mockPasswordUtil = Mockito.mockStatic(PasswordUtil.class)) {
+                mockPasswordUtil.when(() -> PasswordUtil.verify(CORRECT_PASSWORD, HASHED_PASSWORD))
+                        .thenReturn(true);
+
+                doThrow(new RuntimeException("Database error")).when(userDao).delete(mockEm, user);
+
+                assertThatThrownBy(() -> userService.deleteUser(USER_ID, CORRECT_PASSWORD))
+                        .isInstanceOf(RuntimeException.class)
+                        .hasMessage("Database error");
+
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(userDao).delete(mockEm, user);
+                verify(mockTx).begin();
+                verify(mockTx).rollback();
+                verify(mockTx, never()).commit();
+            }
+        }
+
+        @Test
+        void deleteUser_shouldHandleOptimisticLockException_andRollback() {
+
+            User user = User.builder().build();
+            user.setId(USER_ID);
+            user.setPasswordHash(HASHED_PASSWORD);
+
+            when(emf.createEntityManager()).thenReturn(mockEm);
+            when(mockEm.getTransaction()).thenReturn(mockTx);
+            when(mockTx.isActive()).thenReturn(true);
+            when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.of(user));
+
+            try (MockedStatic<PasswordUtil> mockPasswordUtil = Mockito.mockStatic(PasswordUtil.class)) {
+                mockPasswordUtil.when(() -> PasswordUtil.verify(CORRECT_PASSWORD, HASHED_PASSWORD))
+                        .thenReturn(true);
+
+                doThrow(new OptimisticLockException()).when(userDao).delete(mockEm, user);
+
+                assertThatThrownBy(() -> userService.deleteUser(USER_ID, CORRECT_PASSWORD))
+                        .isInstanceOf(OptimisticLockException.class);
+
+                verify(userDao).findById(mockEm, USER_ID);
+                verify(userDao).delete(mockEm, user);
+                verify(mockTx).begin();
+                verify(mockTx).rollback();
+                verify(mockTx, never()).commit();
+            }
+        }
+    }
 }

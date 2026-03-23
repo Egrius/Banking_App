@@ -112,6 +112,8 @@ public class UserService {
 
             ValidatorUtil.validate(updateDto);
 
+            System.out.println("отработал валидатор утил");
+
             tx.begin();
 
             User userToUpdate = userDao.findById(em, userId).orElseThrow(
@@ -124,6 +126,8 @@ public class UserService {
             return userReadMapper.map(updatedUser);
         } catch (Exception e) {
             if(tx.isActive()) tx.rollback();
+            System.out.println(e.getStackTrace());
+            System.out.println("ОШИБКА, ПРИЧИНА: " + e.getCause());
             throw e;
         } finally {
             em.close();
@@ -151,13 +155,11 @@ public class UserService {
                     log.info("Пароль изменен для пользователя {}", userId);
 
                 } catch (OptimisticLockException e) {
-                    tx.rollback();
                     log.error("Конфликт версий при обновлении пользователя {}", userId);
                     throw new ConcurrentModificationException(
                             "Пользователь был изменен. Обновите данные и повторите попытку.");
                 }
             } else {
-                tx.rollback();
                 throw new IllegalArgumentException("Передан неправильный пароль");
             }
 
@@ -182,7 +184,7 @@ public class UserService {
                     .orElseThrow(() -> new EntityNotFoundException("Не найден пользователь для удаления с id: " + userId));
 
             if (!PasswordUtil.verify(password, userToDelete.getPasswordHash())) {
-                tx.rollback();
+
                 log.warn("Попытка удаления пользователя {} с неверным паролем", userId);
                 throw new IllegalArgumentException("Неверный пароль");
             }
