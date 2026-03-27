@@ -1,6 +1,7 @@
 package org.example.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.Constraint;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -15,8 +16,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 
+
 @Entity
-@Table(name = "accounts")
+@Table(name = "accounts", uniqueConstraints = {
+        @UniqueConstraint (name = "account_user_uq", columnNames = {"user_id, account_type"})})
 @Getter
 @Setter
 @ToString(exclude = {"user"})

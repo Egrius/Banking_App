@@ -16,6 +16,7 @@ import org.example.entity.AccountBalanceAudit;
 import org.example.entity.User;
 import org.example.entity.enums.Status;
 import org.example.mapper.AccountReadMapper;
+import org.example.security.AuthContext;
 import org.example.util.ValidatorUtil;
 
 import java.math.BigDecimal;
@@ -31,7 +32,7 @@ public class AccountService {
     private final AccountReadMapper accountReadMapper;
     private final EntityManagerFactory emf;
 
-    public AccountReadDto createAccount(AccountCreateDto createDto) {
+    public AccountReadDto createAccount(AccountCreateDto createDto, AuthContext authContext) {
 
         ValidatorUtil.validate(createDto);
 
@@ -43,6 +44,10 @@ public class AccountService {
 
             User user = userDao.findById(em, createDto.userId())
                     .orElseThrow(() -> new EntityNotFoundException("Пользователь не найден"));
+
+            if(!createDto.userId().equals(authContext.getUserId()) || !authContext.isAdmin()) {
+                throw new
+            }
 
             if(accountDao.existsByUserIdAndType(em, user.getId(), createDto.accountType())) {
                 throw new IllegalStateException("У пользователя уже есть счет такого типа");
