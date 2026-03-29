@@ -1,13 +1,10 @@
 package org.example.service;
 
 import jakarta.persistence.*;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
 import org.example.dao.UserDao;
 import org.example.dto.response.ValidationErrorResponse;
 import org.example.dto.role.RoleReadDto;
 import org.example.dto.user.*;
-import org.example.entity.Role;
 import org.example.entity.User;
 import org.example.exception.CustomValidationException;
 import org.example.mapper.UserReadMapper;
@@ -22,7 +19,6 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.verification.VerificationMode;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -606,10 +602,7 @@ class UserServiceUnitTest {
             verify(userDao, never()).findById(any(EntityManager.class), any(Long.class));
             verify(userUpdateMapper, never()).map(any(UserUpdateDto.class), any(User.class));
             verify(userDao, never()).update(any(EntityManager.class), any(User.class));
-
-
         }
-
     }
 
     @Nested

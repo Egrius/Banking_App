@@ -1,9 +1,9 @@
 package org.example.util;
 
 import org.example.entity.Role;
+import org.example.exception.security_exception.AccessDeniedException;
 import org.example.security.AuthContext;
 
-import java.nio.file.AccessDeniedException;
 import java.util.Arrays;
 
 public class SecurityUtil {
@@ -23,21 +23,33 @@ public class SecurityUtil {
         }
     }
 
-    public static void checkAdmin(AuthContext authContext) {
+    public static void checkAdmin(AuthContext authContext)  {
         if (!authContext.isAdmin()) {
             throw new AccessDeniedException("Необходим доступ администратора");
         }
     }
 
-    public static void checkAuthenticated(AuthContext authContext) {
+    public static void checkAdminOrOwner(AuthContext authContext, Long resourceOwnerId) {
+        try {
+            checkOwner(authContext, resourceOwnerId);
+        } catch (AccessDeniedException e) {
+            try {
+                checkAdmin(authContext);
+            } catch (AccessDeniedException e2) {
+                throw new AccessDeniedException("Вы имеете доступ только к своим ресурсам");
+            }
+        }
+    }
+
+    public static void checkAuthenticated(AuthContext authContext) throws AccessDeniedException {
        if(authContext == null) throw new AccessDeniedException("Пользователь не аутентифицирован");
     }
 
     // Проверка: любая из ролей
-    public static void hasAnyRole(AuthContext authContext, Role... allowedRoles) {
+    public static boolean hasAnyRole(AuthContext authContext, Role... allowedRoles) {
         for (Role role : allowedRoles) {
             if (authContext.getRoles().contains(role.getName())) {
-                return;
+                return true;
             }
         }
         throw new AccessDeniedException("Required roles: " + Arrays.toString(allowedRoles));

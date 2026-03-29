@@ -15,8 +15,11 @@ import org.example.entity.Account;
 import org.example.entity.AccountBalanceAudit;
 import org.example.entity.User;
 import org.example.entity.enums.Status;
+import org.example.exception.account.AccountAlreadyExistsException;
+import org.example.exception.security_exception.AccessDeniedException;
 import org.example.mapper.AccountReadMapper;
 import org.example.security.AuthContext;
+import org.example.util.SecurityUtil;
 import org.example.util.ValidatorUtil;
 
 import java.math.BigDecimal;
@@ -40,17 +43,17 @@ public class AccountService {
         EntityTransaction tx = em.getTransaction();
 
         try {
+
+            SecurityUtil.checkAuthenticated(authContext);
+            SecurityUtil.checkAdminOrOwner(authContext, createDto.userId());
+
             tx.begin();
 
             User user = userDao.findById(em, createDto.userId())
                     .orElseThrow(() -> new EntityNotFoundException("Пользователь не найден"));
 
-            if(!createDto.userId().equals(authContext.getUserId()) || !authContext.isAdmin()) {
-                throw new
-            }
-
             if(accountDao.existsByUserIdAndType(em, user.getId(), createDto.accountType())) {
-                throw new IllegalStateException("У пользователя уже есть счет такого типа");
+                throw new AccountAlreadyExistsException("У пользователя уже есть счет такого типа");
             }
 
             Account account = new Account(user,
@@ -75,25 +78,35 @@ public class AccountService {
         }
     }
 
-    public AccountReadDto getAccount(Long accountId) {
+    public AccountReadDto getAccount(Long accountId, AuthContext authContext) {
+        log.debug("Запрос счета accountId={}, userId={}", accountId, authContext.getUserId());
 
         EntityManager em = emf.createEntityManager();
 
         try {
+            SecurityUtil.checkAuthenticated(authContext);
+
             Account account = accountDao.findById(em, accountId)
-                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт с id " + accountId + " не найден"));
+                    .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
+
+            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId()); // N+1 не должно быть т.к прокси
 
             return accountReadMapper.map(account);
 
+        } catch (Exception e) {
+            throw e;
         } finally {
             em.close();
         }
     }
 
-    public List<AccountSummaryDto> getUserAccounts(Long userId){
+    public List<AccountSummaryDto> getUserAccounts(Long userId, AuthContext authContext){
         EntityManager em = emf.createEntityManager();
 
         try {
+            SecurityUtil.checkAuthenticated(authContext);
+            SecurityUtil.checkAdminOrOwner(authContext, userId);
+
             List<Account> accounts = accountDao.findUserAccountsByUserId(em, userId);
 
             return accounts.stream()
@@ -105,23 +118,33 @@ public class AccountService {
                     ))
                     .toList();
 
+        } catch (Exception e) {
+            throw e;
         } finally {
             em.close();
         }
     }
 
     // здесь может быть изоляция
-    public void closeAccount(Long accountId) {
+    public void closeAccount(Long accountId, AuthContext authContext) {
+        log.debug("Попытка закрытия счета accountId={}, userId={}", accountId, authContext.getUserId());
+
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
+
         try {
+
+            SecurityUtil.checkAuthenticated(authContext);
+
             tx.begin();
 
             Account account = accountDao.findById(em, accountId)
-                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт с id " + accountId + " не найден"));
+                    .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
+
+            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId()); // N+1 не должно быть т.к прокси
 
             if (account.getStatus() == Status.CLOSED) {
-                throw new IllegalStateException("Аккаунт уже закрыт");
+                throw new IllegalStateException("Счет уже закрыт");
             }
 
             if (account.getStatus() == Status.BLOCKED) {
@@ -132,16 +155,21 @@ public class AccountService {
             account.setClosingDate(LocalDateTime.now());
 
             accountDao.save(em, account);
-            log.info("Аккаунт был закрыт");
+
+            log.info("Счет {} закрыт пользователем {}", account.getAccountNumber(), authContext.getUserId());
+
             tx.commit();
 
         } catch(OptimisticLockException e) {
             tx.rollback();
-            log.info("Аккаунт был кем-то обновлён, попробуйте ещё раз");
+            log.warn("Конфликт при закрытии счета accountId={}, userId={}",
+                     accountId, authContext.getUserId());
             throw e;
+
         } catch (Exception e) {
             if(tx.isActive()) tx.rollback();
             throw e;
+
         } finally {
             em.close();
         }
@@ -149,16 +177,22 @@ public class AccountService {
 
     // здесь может быть изоляция
     // TODO в логи добавить причину плюс событие
-    public void blockAccount(Long accountId, String reason){
+    public void blockAccount(Long accountId, String reason, AuthContext authContext){
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
+
         try {
+
+            SecurityUtil.checkAuthenticated(authContext);
+
             tx.begin();
             Account account = accountDao.findById(em, accountId)
-                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт с id " + accountId + " не найден"));
+                    .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
+
+            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
 
             if (account.getStatus() == Status.BLOCKED) {
-                throw new IllegalStateException("Аккаунт уже заблокирован");
+                throw new IllegalStateException("Счет уже заблокирован");
             }
 
             if (account.getStatus() == Status.CLOSED) {
@@ -171,35 +205,43 @@ public class AccountService {
             accountDao.save(em, account);
             tx.commit();
 
-            log.info("Аккаунт {} заблокирован. Причина: {}", account.getAccountNumber(), reason);
+            log.info("Счет {} заблокирован. Причина: {}", account.getAccountNumber(), reason);
 
         } catch (OptimisticLockException e) {
             if (tx.isActive()) tx.rollback();
             log.info("Аккаунт был кем-то обновлён, попробуйте ещё раз");
             throw e;
+
         } catch (Exception e) {
             if (tx.isActive()) tx.rollback();
-            throw e;  // Не забываем пробросить!
+            throw e;
+
         } finally {
             em.close();
         }
     }
 
-    public PageResponse<BalanceAuditReadDto> getBalanceAudit(Long accountId, PageRequest pageRequest) {
+    public PageResponse<BalanceAuditReadDto> getBalanceAudit(Long accountId, PageRequest pageRequest, AuthContext authContext) {
         EntityManager em = emf.createEntityManager();
 
         try {
-            if (!accountDao.existsById(em, accountId)) {
-                throw new EntityNotFoundException("Аккаунт с id " + accountId + " не найден");
-            }
+
+            SecurityUtil.checkAuthenticated(authContext);
+
+            Account account = accountDao.findById(em, accountId)
+                    .orElseThrow(() -> new EntityNotFoundException("Счет не найден"));
+
+            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
 
             // Подсчет сколько всего, чтобы создать респонс
             Long auditsTotal = accountDao.countAudits(em, accountId);
 
             List<AccountBalanceAudit> audits = accountDao.getAuditsPage(em, accountId,pageRequest.getPageNumber(), pageRequest.getPageSize());
+
             return new PageResponse<BalanceAuditReadDto>(
                     audits.stream().map(a -> new BalanceAuditReadDto(
-                        a.getBalanceBefore(), a.getBalanceAfter(), a.getChangeAmount(), a.getChangedAt(), a.getChangedByThread()
+                        a.getBalanceBefore(), a.getBalanceAfter(),
+                        a.getChangeAmount(), a.getChangedAt(), a.getChangedByThread()
                     )).toList(),
                     pageRequest.getPageNumber(),
                     pageRequest.getPageSize(), auditsTotal);
@@ -209,13 +251,22 @@ public class AccountService {
         }
     }
 
-    public BigDecimal getBalance(Long accountId) {
+    public BigDecimal getBalance(Long accountId, AuthContext authContext) {
         EntityManager em = emf.createEntityManager();
 
         try {
-            return accountDao.findById(em, accountId)
-                    .map(Account::getBalance)
-                    .orElseThrow(() -> new EntityNotFoundException("Счет с id" + accountId + "не найден"));
+
+            SecurityUtil.checkAuthenticated(authContext);
+
+            Account account = accountDao.findById(em, accountId)
+                    .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
+
+            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
+
+           return account.getBalance();
+
+        } catch (Exception e) {
+            throw e;
 
         } finally {
             em.close();

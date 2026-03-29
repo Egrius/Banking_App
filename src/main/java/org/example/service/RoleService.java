@@ -24,7 +24,6 @@ public class RoleService {
     private final UserReadMapper userReadMapper;
     private final EntityManagerFactory entityManagerFactory;
 
-
     public void createRole(String roleName) {
         if (roleName != null && !roleName.isBlank()) {
             if (roleName.length() < 3) {
