@@ -1,7 +1,8 @@
 package org.example.dao;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
+import org.example.dto.request.PageRequest;
+import org.example.dto.response.PageResponse;
 import org.example.entity.User;
 
 import java.util.List;
@@ -15,24 +16,26 @@ public class UserDao extends BaseDaoImpl<User, Long> {
 
     public Optional<User> findByEmail(EntityManager em, String email) {
 
-        try {
-            return em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
-                    .setParameter("email", email)
-                    .getResultStream()
-                    .findFirst();
-        } finally {
-            if(em.isOpen()) em.close();
-        }
+        return em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
+                .setParameter("email", email)
+                .getResultStream()
+                .findFirst();
+
     }
 
-    public List<User> findAll(EntityManager em) {
+    public PageResponse<User> findAllPageable(EntityManager em, PageRequest pageRequest) {
 
-        try {
-            return em.createQuery("SELECT u FROM User u", User.class)
-                    .getResultList();
-        } finally {
-            if(em.isOpen()) em.close();
-        }
+        Long total = em.createQuery("SELECT COUNT(u) FROM User u", Long.class)
+                .getSingleResult();
+
+
+        List<User> users = em.createQuery("SELECT u FROM User u", User.class)
+                .setFirstResult(pageRequest.getPageNumber() * pageRequest.getPageSize())
+                .setMaxResults(pageRequest.getPageSize())
+                .getResultList();
+
+        return new PageResponse<>(users, pageRequest.getPageNumber(), pageRequest.getPageSize(), total);
+
     }
 
 }

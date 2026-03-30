@@ -37,15 +37,15 @@ public class AccountService {
 
     public AccountReadDto createAccount(AccountCreateDto createDto, AuthContext authContext) {
 
+        SecurityUtil.checkAuthenticated(authContext);
+        SecurityUtil.checkAdminOrOwner(authContext, createDto.userId());
+
         ValidatorUtil.validate(createDto);
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
         try {
-
-            SecurityUtil.checkAuthenticated(authContext);
-            SecurityUtil.checkAdminOrOwner(authContext, createDto.userId());
 
             tx.begin();
 
@@ -79,12 +79,14 @@ public class AccountService {
     }
 
     public AccountReadDto getAccount(Long accountId, AuthContext authContext) {
+
+        SecurityUtil.checkAuthenticated(authContext);
+
         log.debug("Запрос счета accountId={}, userId={}", accountId, authContext.getUserId());
 
         EntityManager em = emf.createEntityManager();
 
         try {
-            SecurityUtil.checkAuthenticated(authContext);
 
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
@@ -101,11 +103,13 @@ public class AccountService {
     }
 
     public List<AccountSummaryDto> getUserAccounts(Long userId, AuthContext authContext){
+
+        SecurityUtil.checkAuthenticated(authContext);
+        SecurityUtil.checkAdminOrOwner(authContext, userId);
+
         EntityManager em = emf.createEntityManager();
 
         try {
-            SecurityUtil.checkAuthenticated(authContext);
-            SecurityUtil.checkAdminOrOwner(authContext, userId);
 
             List<Account> accounts = accountDao.findUserAccountsByUserId(em, userId);
 
@@ -129,12 +133,12 @@ public class AccountService {
     public void closeAccount(Long accountId, AuthContext authContext) {
         log.debug("Попытка закрытия счета accountId={}, userId={}", accountId, authContext.getUserId());
 
+        SecurityUtil.checkAuthenticated(authContext);
+
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
         try {
-
-            SecurityUtil.checkAuthenticated(authContext);
 
             tx.begin();
 
@@ -178,12 +182,13 @@ public class AccountService {
     // здесь может быть изоляция
     // TODO в логи добавить причину плюс событие
     public void blockAccount(Long accountId, String reason, AuthContext authContext){
+
+        SecurityUtil.checkAuthenticated(authContext);
+
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
         try {
-
-            SecurityUtil.checkAuthenticated(authContext);
 
             tx.begin();
             Account account = accountDao.findById(em, accountId)
@@ -222,11 +227,12 @@ public class AccountService {
     }
 
     public PageResponse<BalanceAuditReadDto> getBalanceAudit(Long accountId, PageRequest pageRequest, AuthContext authContext) {
+
+        SecurityUtil.checkAuthenticated(authContext);
+
         EntityManager em = emf.createEntityManager();
 
         try {
-
-            SecurityUtil.checkAuthenticated(authContext);
 
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет не найден"));
@@ -252,11 +258,12 @@ public class AccountService {
     }
 
     public BigDecimal getBalance(Long accountId, AuthContext authContext) {
+
+        SecurityUtil.checkAuthenticated(authContext);
+
         EntityManager em = emf.createEntityManager();
 
         try {
-
-            SecurityUtil.checkAuthenticated(authContext);
 
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));

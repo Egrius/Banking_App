@@ -10,10 +10,13 @@ import org.example.dto.user.UserReadDto;
 import org.example.entity.Role;
 import org.example.entity.User;
 import org.example.mapper.UserReadMapper;
+import org.example.security.AuthContext;
+import org.example.util.SecurityUtil;
 
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 
 @Slf4j
 @RequiredArgsConstructor
@@ -24,42 +27,43 @@ public class RoleService {
     private final UserReadMapper userReadMapper;
     private final EntityManagerFactory entityManagerFactory;
 
-    public void createRole(String roleName) {
-        if (roleName != null && !roleName.isBlank()) {
-            if (roleName.length() < 3) {
-                throw new IllegalArgumentException("Роль должна содержать больше 3-х символов");
-            }
+    public void createRole(String roleName, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
 
-            EntityManager em = entityManagerFactory.createEntityManager();
-            EntityTransaction tx = em.getTransaction();
-
-            try {
-                tx.begin();
-
-                if (roleDao.findByName(em, roleName.toUpperCase()).isPresent()) {
-                    throw new IllegalArgumentException("Роль с именем " + roleName.toUpperCase() + " уже существует");
-                }
-
-                Role role = new Role(roleName.toUpperCase());
-                roleDao.save(em, role);
-
-                tx.commit();
-                log.info("Создана новая роль {}", roleName.toUpperCase());
-
-            } catch (Exception e) {
-                if (tx.isActive()) {
-                    tx.rollback();
-                }
-                throw e;
-            } finally {
-                em.close();
-            }
-        } else {
+        if (roleName == null || roleName.isBlank()) {
             throw new IllegalArgumentException("Нельзя создать роль без имени");
+        }
+        if (roleName.length() < 3) {
+            throw new IllegalArgumentException("Роль должна содержать больше 3-х символов");
+        }
+
+        EntityManager em = entityManagerFactory.createEntityManager();
+        EntityTransaction tx = em.getTransaction();
+
+        try {
+            tx.begin();
+
+            if (roleDao.findByName(em, roleName.toUpperCase()).isPresent()) {
+                throw new IllegalArgumentException("Роль с именем " + roleName.toUpperCase() + " уже существует");
+            }
+
+            Role role = new Role(roleName.toUpperCase());
+            roleDao.save(em, role);
+
+            tx.commit();
+            log.info("Создана новая роль {} администратором {}", roleName.toUpperCase(), authContext.getUserId());
+
+        } catch (Exception e) {
+            if (tx.isActive()) tx.rollback();
+            throw e;
+        } finally {
+            em.close();
         }
     }
 
-    public RoleReadDto findById(Long roleId) {
+    public RoleReadDto findById(Long roleId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
 
         try {
@@ -71,7 +75,9 @@ public class RoleService {
         }
     }
 
-    public RoleReadDto findByName(String name) {
+    public RoleReadDto findByName(String name, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Имя роли не может быть пустым");
         }
@@ -87,7 +93,9 @@ public class RoleService {
         }
     }
 
-    public List<RoleReadDto> findAll() {
+    public List<RoleReadDto> findAll(AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
 
         try {
@@ -100,7 +108,9 @@ public class RoleService {
         }
     }
 
-    public RoleReadDto updateRole(Long roleId, String newName) {
+    public RoleReadDto updateRole(Long roleId, String newName, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         if (newName == null || newName.isBlank()) {
             throw new IllegalArgumentException("Имя роли не может быть пустым");
         }
@@ -128,20 +138,20 @@ public class RoleService {
             roleDao.update(em, role);
 
             tx.commit();
-            log.info("Обновлена роль {} с новым именем {}", roleId, normalizedName);
+            log.info("Роль {} обновлена администратором {} на {}", roleId, authContext.getUserId(), normalizedName);
             return mapToReadDto(role);
 
         } catch (Exception e) {
-            if (tx.isActive()) {
-                tx.rollback();
-            }
+            if (tx.isActive()) tx.rollback();
             throw e;
         } finally {
             em.close();
         }
     }
 
-    public void deleteRole(Long roleId) {
+    public void deleteRole(Long roleId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
@@ -156,20 +166,22 @@ public class RoleService {
             }
 
             roleDao.delete(em, role);
-
             tx.commit();
 
+            log.info("Роль {} удалена администратором {}", role.getName(), authContext.getUserId());
+
         } catch (Exception e) {
-            if (tx.isActive()) {
-                tx.rollback();
-            }
+            if (tx.isActive()) tx.rollback();
             throw e;
         } finally {
             em.close();
         }
     }
 
-    public void assignRoleToUser(Long userId, Long roleId) {
+
+    public void assignRoleToUser(Long userId, Long roleId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
@@ -185,7 +197,8 @@ public class RoleService {
             boolean added = user.getRoles().add(role);
             if (added) {
                 userDao.update(em, user);
-                log.info("Роль {} назначена пользователю {}", role.getName(), userId);
+                log.info("Роль {} назначена пользователю {} администратором {}",
+                        role.getName(), userId, authContext.getUserId());
             } else {
                 log.info("Роль {} уже назначена пользователю {}", role.getName(), userId);
             }
@@ -193,16 +206,17 @@ public class RoleService {
             tx.commit();
 
         } catch (Exception e) {
-            if (tx.isActive()) {
-                tx.rollback();
-            }
+            if (tx.isActive()) tx.rollback();
             throw e;
         } finally {
             em.close();
         }
     }
 
-    public void assignRolesToUser(Long userId, Set<Long> roleIds) {
+
+    public void assignRolesToUser(Long userId, Set<Long> roleIds, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
@@ -221,23 +235,24 @@ public class RoleService {
             if (!roles.isEmpty()) {
                 user.getRoles().addAll(roles);
                 userDao.update(em, user);
-                log.info("Роли {} назначены пользователю {}",
-                        roles.stream().map(Role::getName).collect(Collectors.toSet()), userId);
+                log.info("Роли {} назначены пользователю {} администратором {}",
+                        roles.stream().map(Role::getName).collect(Collectors.toSet()),
+                        userId, authContext.getUserId());
             }
 
             tx.commit();
 
         } catch (Exception e) {
-            if (tx.isActive()) {
-                tx.rollback();
-            }
+            if (tx.isActive()) tx.rollback();
             throw e;
         } finally {
             em.close();
         }
     }
 
-    public void removeRoleFromUser(Long userId, Long roleId) {
+    public void removeRoleFromUser(Long userId, Long roleId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
@@ -253,22 +268,23 @@ public class RoleService {
             boolean removed = user.getRoles().remove(role);
             if (removed) {
                 userDao.update(em, user);
-                log.info("Роль {} удалена у пользователя {}", role.getName(), userId);
+                log.info("Роль {} удалена у пользователя {} администратором {}",
+                        role.getName(), userId, authContext.getUserId());
             }
 
             tx.commit();
 
         } catch (Exception e) {
-            if (tx.isActive()) {
-                tx.rollback();
-            }
+            if (tx.isActive()) tx.rollback();
             throw e;
         } finally {
             em.close();
         }
     }
 
-    public void removeAllRolesFromUser(Long userId) {
+    public void removeAllRolesFromUser(Long userId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
@@ -281,22 +297,40 @@ public class RoleService {
             if (!user.getRoles().isEmpty()) {
                 user.getRoles().clear();
                 userDao.update(em, user);
-                log.info("Все роли удалены у пользователя {}", userId);
+                log.info("Все роли удалены у пользователя {} администратором {}",
+                        userId, authContext.getUserId());
             }
 
             tx.commit();
 
         } catch (Exception e) {
-            if (tx.isActive()) {
-                tx.rollback();
-            }
+            if (tx.isActive()) tx.rollback();
             throw e;
         } finally {
             em.close();
         }
     }
 
-    public Set<RoleReadDto> getUserRoles(Long userId) {
+    public List<UserReadDto> getUsersWithRole(Long roleId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
+        EntityManager em = entityManagerFactory.createEntityManager();
+
+        try {
+            roleDao.findById(em, roleId)
+                    .orElseThrow(() -> new EntityNotFoundException("Роль с id " + roleId + " не найдена"));
+
+            return roleDao.findUsersByRoleId(em, roleId).stream()
+                    .map(userReadMapper::map)
+                    .toList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public Set<RoleReadDto> getUserRoles(Long userId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
 
         try {
@@ -311,7 +345,9 @@ public class RoleService {
         }
     }
 
-    public boolean hasRole(Long userId, String roleName) {
+    public boolean hasRole(Long userId, String roleName, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
 
         try {
@@ -325,7 +361,9 @@ public class RoleService {
         }
     }
 
-    public boolean hasAnyRole(Long userId, Set<String> roleNames) {
+    public boolean hasAnyRole(Long userId, Set<String> roleNames, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
 
         try {
@@ -344,7 +382,9 @@ public class RoleService {
         }
     }
 
-    public boolean hasAllRoles(Long userId, Set<String> roleNames) {
+    public boolean hasAllRoles(Long userId, Set<String> roleNames, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
+
         EntityManager em = entityManagerFactory.createEntityManager();
 
         try {
@@ -360,21 +400,6 @@ public class RoleService {
                     .collect(Collectors.toSet());
 
             return userRoleNames.containsAll(upperCaseRoleNames);
-        } finally {
-            em.close();
-        }
-    }
-
-    public List<UserReadDto> getUsersWithRole(Long roleId) {
-        EntityManager em = entityManagerFactory.createEntityManager();
-
-        try {
-            roleDao.findById(em, roleId)
-                    .orElseThrow(() -> new EntityNotFoundException("Роль с id " + roleId + " не найдена"));
-
-            return roleDao.findUsersByRoleId(em, roleId).stream()
-                    .map(userReadMapper::map)
-                    .toList();
         } finally {
             em.close();
         }

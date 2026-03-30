@@ -4,11 +4,17 @@ import jakarta.persistence.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dao.UserDao;
+import org.example.dto.request.PageRequest;
+import org.example.dto.response.PageResponse;
 import org.example.dto.user.*;
 import org.example.entity.User;
+import org.example.exception.security_exception.AccessDeniedException;
+import org.example.exception.user.UserAlreadyExistsException;
 import org.example.mapper.UserReadMapper;
 import org.example.mapper.UserUpdateMapper;
+import org.example.security.AuthContext;
 import org.example.util.PasswordUtil;
+import org.example.util.SecurityUtil;
 import org.example.util.ValidatorUtil;
 
 import java.util.ConcurrentModificationException;
@@ -24,17 +30,19 @@ public class UserService {
     private final EntityManagerFactory emf;
 
     public UserReadDto register(UserCreateDto createDto) {
+
+        ValidatorUtil.validate(createDto);
+
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
         try{
-            ValidatorUtil.validate(createDto);
 
             tx.begin();
 
             if (userDao.findByEmail(em, createDto.email()).isPresent()) {
                 tx.rollback();
-                throw new IllegalArgumentException("Пользователь с email " + createDto.email() + " уже существует");
+                throw new UserAlreadyExistsException("Пользователь с email " + createDto.email() + " уже существует");
             }
 
             User user = User.builder()
@@ -61,14 +69,17 @@ public class UserService {
     }
 
     public UserReadDto login(UserLoginDto loginDto) {
+
+        ValidatorUtil.validate(loginDto);
+
         EntityManager em = emf.createEntityManager();
 
         try {
-            ValidatorUtil.validate(loginDto);
 
             User foundUser = userDao.findByEmail(em, loginDto.email()).orElseThrow(() -> new EntityNotFoundException("Пользователь не найден"));
+
             if(!PasswordUtil.verify(loginDto.rawPassword(), foundUser.getPasswordHash())) {
-                throw new IllegalArgumentException("Пароль неверен!");
+                throw new AccessDeniedException("Пароль неверен!");
             }
             return userReadMapper.map(foundUser);
         } finally {
@@ -90,29 +101,42 @@ public class UserService {
         }
     }
 
-    // Добавить пагинацию, хотя пока избыточно
-    public List<UserReadDto> findAll() {
+    public PageResponse<UserReadDto> findAll(AuthContext authContext, PageRequest pageRequest) {
+
+        SecurityUtil.checkAdmin(authContext); // бросает unchecked если не админ
+
+        if(pageRequest == null) throw new IllegalStateException("Нельзя выполнить пустой запрос!");
+
         EntityManager em = emf.createEntityManager();
 
         try {
-            return userDao.findAll(em)
-                    .stream()
-                    .map(userReadMapper::map)
-                    .toList();
+
+            PageResponse<User> pageResponse = userDao.findAllPageable(em, pageRequest);
+
+            return new PageResponse<UserReadDto>(
+                    pageResponse.getContent().stream().map(userReadMapper::map).toList(),
+                    pageResponse.getPageNumber(),
+                    pageResponse.getPageSize(),
+                    pageResponse.getTotalElements()
+            );
         } finally {
             em.close();
         }
     }
 
-    public UserReadDto updateUser(Long userId, UserUpdateDto updateDto) {
+    public UserReadDto updateUser(Long userId, UserUpdateDto updateDto, AuthContext authContext) {
+
+        SecurityUtil.checkAdminOrOwner(authContext, userId); // бросает unchecked если не прошла проверка
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
+
         try {
 
             ValidatorUtil.validate(updateDto);
 
-            System.out.println("отработал валидатор утил");
+            log.debug("Валидация пройдена для updateUser");
+
 
             tx.begin();
 
@@ -126,15 +150,17 @@ public class UserService {
             return userReadMapper.map(updatedUser);
         } catch (Exception e) {
             if(tx.isActive()) tx.rollback();
-            System.out.println(e.getStackTrace());
-            System.out.println("ОШИБКА, ПРИЧИНА: " + e.getCause());
+            log.error("Ошибка при обновлении пользователя", e);
             throw e;
         } finally {
             em.close();
         }
     }
 
-    public void changePassword(Long userId, PasswordChangeDto passwordChangeDto) {
+    public void changePassword(Long userId, PasswordChangeDto passwordChangeDto, AuthContext authContext) {
+
+        SecurityUtil.checkAdminOrOwner(authContext, userId);
+
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
@@ -160,7 +186,7 @@ public class UserService {
                             "Пользователь был изменен. Обновите данные и повторите попытку.");
                 }
             } else {
-                throw new IllegalArgumentException("Передан неправильный пароль");
+                throw new AccessDeniedException("Передан неправильный пароль");
             }
 
         } catch (Exception e) {
@@ -173,7 +199,10 @@ public class UserService {
         }
     }
 
-    public void deleteUser(Long userId, String password) {
+    public void deleteUser(Long userId, String password, AuthContext authContext) {
+
+        SecurityUtil.checkAdminOrOwner(authContext, userId);
+
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
@@ -183,10 +212,11 @@ public class UserService {
             User userToDelete = userDao.findById(em, userId)
                     .orElseThrow(() -> new EntityNotFoundException("Не найден пользователь для удаления с id: " + userId));
 
-            if (!PasswordUtil.verify(password, userToDelete.getPasswordHash())) {
-
-                log.warn("Попытка удаления пользователя {} с неверным паролем", userId);
-                throw new IllegalArgumentException("Неверный пароль");
+            if (!authContext.isAdmin()) {
+                if (!PasswordUtil.verify(password, userToDelete.getPasswordHash())) {
+                    log.warn("Попытка удаления пользователя {} с неверным паролем", userId);
+                    throw new AccessDeniedException("Неверный пароль");
+                }
             }
 
             userDao.delete(em, userToDelete);
