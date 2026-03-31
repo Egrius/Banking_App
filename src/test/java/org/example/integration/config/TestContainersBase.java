@@ -1,9 +1,13 @@
 package org.example.integration.config;
 
-import org.junit.jupiter.api.BeforeAll;
+import org.hibernate.SessionFactory;
+import org.hibernate.cfg.Configuration;
+import org.junit.jupiter.api.AfterAll;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import java.util.Properties;
 
 @Testcontainers
 public class TestContainersBase {
@@ -15,12 +19,49 @@ public class TestContainersBase {
             .withPassword("test")
             .withReuse(true);
 
-    @BeforeAll
-    static void init() {
+    public static SessionFactory sessionFactory;
 
-        System.setProperty("hibernate.connection.url", postgres.getJdbcUrl());
-        System.setProperty("hibernate.connection.username", postgres.getUsername());
-        System.setProperty("hibernate.connection.password", postgres.getPassword());
-        System.setProperty("hibernate.connection.driver_class", "org.postgresql.Driver");
+    private static SessionFactory createSessionFactory() {
+        if (sessionFactory == null) {
+            Configuration configuration = new Configuration();
+
+            Properties properties = new Properties();
+
+            properties.setProperty("hibernate.connection.driver_class", "org.postgresql.Driver");
+            properties.setProperty("hibernate.connection.url", postgres.getJdbcUrl());
+            properties.setProperty("hibernate.connection.username", postgres.getUsername());
+            properties.setProperty("hibernate.connection.password", postgres.getPassword());
+
+            properties.setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+
+            properties.setProperty("hibernate.hbm2ddl.auto", "create-drop");
+
+            properties.setProperty("hibernate.show_sql", "true");
+            properties.setProperty("hibernate.format_sql", "true");
+
+            properties.setProperty("hibernate.connection.pool_size", "5");
+
+            configuration.setProperties(properties);
+
+            configuration.addAnnotatedClass(org.example.entity.User.class);
+            configuration.addAnnotatedClass(org.example.entity.Role.class);
+            configuration.addAnnotatedClass(org.example.entity.TransactionTemplate.class);
+            configuration.addAnnotatedClass(org.example.entity.BankTransaction.class);
+            configuration.addAnnotatedClass(org.example.entity.Card.class);
+            configuration.addAnnotatedClass(org.example.entity.AuditLog.class);
+            configuration.addAnnotatedClass(org.example.entity.AccountBalanceAudit.class);
+            configuration.addAnnotatedClass(org.example.entity.Account.class);
+
+            sessionFactory = configuration.buildSessionFactory();
+        }
+        return sessionFactory;
+    }
+
+    @AfterAll
+    static void closeSessionFactory() {
+        if (sessionFactory != null) {
+            sessionFactory.close();
+            sessionFactory = null;
+        }
     }
 }

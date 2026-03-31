@@ -26,6 +26,15 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * <h3>Сервис для управления банковскими счетами.</h3>
+ * <p>
+ * Обеспечивает открытие, закрытие, блокировку счетов,
+ * а также получение информации о балансе и истории изменений.
+ * Все операции, изменяющие данные, выполняются в транзакциях
+ * с поддержкой пессимистической и оптимистической блокировок.
+ * </p>
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class AccountService {
@@ -35,6 +44,24 @@ public class AccountService {
     private final AccountReadMapper accountReadMapper;
     private final EntityManagerFactory emf;
 
+    /**
+     * <h3>Открытие нового банковского счета.</h3>
+     * <p>
+     * <b>Доступно владельцу или администратору.</b>
+     * </p>
+     * Выполняет следующие проверки:
+     * <ul>
+     *     <li>существование пользователя</li>
+     *     <li>отсутствие у пользователя счета указанного типа</li>
+     * </ul>
+     *
+     * @param createDto    DTO с данными для открытия счета
+     * @param authContext  контекст аутентификации
+     * @return DTO с информацией о созданном счете
+     * @throws EntityNotFoundException если пользователь не найден
+     * @throws AccountAlreadyExistsException если счет такого типа уже существует
+     * @throws AccessDeniedException если недостаточно прав
+     */
     public AccountReadDto createAccount(AccountCreateDto createDto, AuthContext authContext) {
 
         SecurityUtil.checkAuthenticated(authContext);
@@ -78,6 +105,18 @@ public class AccountService {
         }
     }
 
+    /**
+     * <h3>Получение информации о счете по идентификатору.</h3>
+     * <p>
+     * <b>Доступно владельцу счета или администратору.</b>
+     * </p>
+     *
+     * @param accountId    идентификатор счета
+     * @param authContext  контекст аутентификации
+     * @return DTO с информацией о счете
+     * @throws EntityNotFoundException если счет не найден
+     * @throws AccessDeniedException если недостаточно прав
+     */
     public AccountReadDto getAccount(Long accountId, AuthContext authContext) {
 
         SecurityUtil.checkAuthenticated(authContext);
@@ -102,6 +141,17 @@ public class AccountService {
         }
     }
 
+    /**
+     * <h3>Получение всех счетов пользователя.</h3>
+     * <p>
+     * <b>Доступно владельцу счетов или администратору.</b>
+     * </p>
+     *
+     * @param userId       идентификатор пользователя
+     * @param authContext  контекст аутентификации
+     * @return список кратких DTO счетов пользователя
+     * @throws AccessDeniedException если недостаточно прав
+     */
     public List<AccountSummaryDto> getUserAccounts(Long userId, AuthContext authContext){
 
         SecurityUtil.checkAuthenticated(authContext);
@@ -129,7 +179,20 @@ public class AccountService {
         }
     }
 
-    // здесь может быть изоляция
+    /**
+     * <h3>Закрытие счета.</h3>
+     * <p>
+     * <b>Доступно владельцу счета или администратору.</b>
+     * Счет может быть закрыт только если он не заблокирован и не закрыт ранее.
+     * При конфликте версий выбрасывается {@link jakarta.persistence.OptimisticLockException}.
+     * </p>
+     *
+     * @param accountId    идентификатор счета
+     * @param authContext  контекст аутентификации
+     * @throws EntityNotFoundException если счет не найден
+     * @throws IllegalStateException если счет уже закрыт или заблокирован
+     * @throws AccessDeniedException если недостаточно прав
+     */
     public void closeAccount(Long accountId, AuthContext authContext) {
         log.debug("Попытка закрытия счета accountId={}, userId={}", accountId, authContext.getUserId());
 
@@ -179,7 +242,22 @@ public class AccountService {
         }
     }
 
-    // здесь может быть изоляция
+    /**
+     * <h3>Блокировка счета.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * Счет может быть заблокирован только если он не закрыт.
+     * При конфликте версий выбрасывается {@link jakarta.persistence.OptimisticLockException}.
+     * </p>
+     *
+     * @param accountId    идентификатор счета
+     * @param reason       причина блокировки
+     * @param authContext  контекст аутентификации
+     * @throws EntityNotFoundException если счет не найден
+     * @throws IllegalStateException если счет уже заблокирован или закрыт
+     * @throws AccessDeniedException если недостаточно прав
+     */
+
     // TODO в логи добавить причину плюс событие
     public void blockAccount(Long accountId, String reason, AuthContext authContext){
 
@@ -226,6 +304,19 @@ public class AccountService {
         }
     }
 
+    /**
+     * <h3>Получение истории изменений баланса счета с пагинацией.</h3>
+     * <p>
+     * <b>Доступно владельцу счета или администратору.</b>
+     * </p>
+     *
+     * @param accountId    идентификатор счета
+     * @param pageRequest  параметры пагинации
+     * @param authContext  контекст аутентификации
+     * @return страница с DTO записей аудита баланса
+     * @throws EntityNotFoundException если счет не найден
+     * @throws AccessDeniedException если недостаточно прав
+     */
     public PageResponse<BalanceAuditReadDto> getBalanceAudit(Long accountId, PageRequest pageRequest, AuthContext authContext) {
 
         SecurityUtil.checkAuthenticated(authContext);
@@ -257,6 +348,18 @@ public class AccountService {
         }
     }
 
+    /**
+     * <h3>Получение текущего баланса счета.</h3>
+     * <p>
+     * <b>Доступно владельцу счета или администратору.</b>
+     * </p>
+     *
+     * @param accountId    идентификатор счета
+     * @param authContext  контекст аутентификации
+     * @return текущий баланс
+     * @throws EntityNotFoundException если счет не найден
+     * @throws AccessDeniedException если недостаточно прав
+     */
     public BigDecimal getBalance(Long accountId, AuthContext authContext) {
 
         SecurityUtil.checkAuthenticated(authContext);
@@ -280,6 +383,12 @@ public class AccountService {
         }
     }
 
+    /**
+     * Генерация уникального номера счета.
+     *
+     * @param userId идентификатор пользователя
+     * @return сгенерированный номер счета в формате ACNT-{userId}-{timestamp}-{random}
+     */
     private String generateAccountNumber(Long userId) {
         return String.format("ACNT-%d-%d-%d",
                 userId,

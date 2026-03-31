@@ -18,8 +18,15 @@ import org.example.util.SecurityUtil;
 import org.example.util.ValidatorUtil;
 
 import java.util.ConcurrentModificationException;
-import java.util.List;
 
+/**
+ * Сервис для управления пользователями банковской системы.
+ * <p>
+ * Обеспечивает регистрацию, аутентификацию, поиск, обновление и удаление пользователей,
+ * а также управление паролями. Все методы, изменяющие данные, выполняются в транзакциях
+ * с поддержкой оптимистической блокировки через {@link jakarta.persistence.Version}.
+ * </p>
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class UserService {
@@ -28,7 +35,22 @@ public class UserService {
     private final UserReadMapper userReadMapper;
     private final UserUpdateMapper userUpdateMapper;
     private final EntityManagerFactory emf;
-
+    /**
+     * <h3>Регистрация нового пользователя.</h3>
+     * <p>
+     * Выполняет следующие проверки:
+     * <ul>
+     *     <li>валидация входных данных (имя, email, пароль)</li>
+     *     <li>проверка уникальности email</li>
+     * </ul>
+     * Пароль хешируется с использованием BCrypt перед сохранением.
+     * </p>
+     *
+     * @param createDto DTO с данными для регистрации
+     * @return DTO с информацией о зарегистрированном пользователе
+     * @throws UserAlreadyExistsException если пользователь с таким email уже существует
+     * @throws jakarta.validation.ValidationException если входные данные невалидны
+     */
     public UserReadDto register(UserCreateDto createDto) {
 
         ValidatorUtil.validate(createDto);
@@ -68,6 +90,18 @@ public class UserService {
         }
     }
 
+    /**
+     * <h3>Аутентификация пользователя.</h3>
+     * <p>
+     * Проверяет наличие пользователя по email и соответствие пароля.
+     * При успешной аутентификации возвращает DTO с данными пользователя.
+     * </p>
+     *
+     * @param loginDto DTO с email и паролем
+     * @return DTO с данными аутентифицированного пользователя
+     * @throws EntityNotFoundException если пользователь с указанным email не найден
+     * @throws AccessDeniedException если пароль неверен
+     */
     public UserReadDto login(UserLoginDto loginDto) {
 
         ValidatorUtil.validate(loginDto);
@@ -87,6 +121,13 @@ public class UserService {
         }
     }
 
+    /**
+     * <h3>Поиск пользователя по идентификатору.</h3>
+     *
+     * @param userId идентификатор пользователя
+     * @return DTO с данными пользователя
+     * @throws EntityNotFoundException если пользователь не найден
+     */
     public UserReadDto findById(Long userId) {
         EntityManager em = emf.createEntityManager();
 
@@ -101,6 +142,17 @@ public class UserService {
         }
     }
 
+    /**
+     * <h3>Получение списка всех пользователей с пагинацией.</h3>
+     * <p>
+     * <b>Доступно только администраторам.</b>
+     * </p>
+     *
+     * @param authContext контекст аутентификации
+     * @param pageRequest параметры пагинации (номер страницы, размер страницы)
+     * @return страница с DTO пользователей
+     * @throws AccessDeniedException если текущий пользователь не является администратором
+     */
     public PageResponse<UserReadDto> findAll(AuthContext authContext, PageRequest pageRequest) {
 
         SecurityUtil.checkAdmin(authContext); // бросает unchecked если не админ
@@ -124,6 +176,20 @@ public class UserService {
         }
     }
 
+    /**
+     * <h3>Обновление данных пользователя.</h3>
+     * <p>
+     * Позволяет изменить имя и фамилию пользователя.
+     * <b>Доступно владельцу профиля или администратору.</b>
+     * </p>
+     *
+     * @param userId идентификатор пользователя
+     * @param updateDto DTO с новыми данными
+     * @param authContext контекст аутентификации
+     * @return DTO с обновленными данными пользователя
+     * @throws EntityNotFoundException если пользователь не найден
+     * @throws AccessDeniedException если нет прав на обновление
+     */
     public UserReadDto updateUser(Long userId, UserUpdateDto updateDto, AuthContext authContext) {
 
         SecurityUtil.checkAdminOrOwner(authContext, userId); // бросает unchecked если не прошла проверка
@@ -157,6 +223,21 @@ public class UserService {
         }
     }
 
+    /**
+     * <h3>Смена пароля пользователя.</h3>
+     * <p>
+     * <b>Доступно владельцу профиля или администратору.</b>
+     * Требует подтверждения старого пароля (для администратора проверка не требуется).
+     * При конфликте версий выбрасывается {@link ConcurrentModificationException}.
+     * </p>
+     *
+     * @param userId идентификатор пользователя
+     * @param passwordChangeDto DTO со старым и новым паролями
+     * @param authContext контекст аутентификации
+     * @throws EntityNotFoundException если пользователь не найден
+     * @throws AccessDeniedException если старый пароль неверен (для не-админа)
+     * @throws ConcurrentModificationException при оптимистической блокировке
+     */
     public void changePassword(Long userId, PasswordChangeDto passwordChangeDto, AuthContext authContext) {
 
         SecurityUtil.checkAdminOrOwner(authContext, userId);
@@ -199,6 +280,18 @@ public class UserService {
         }
     }
 
+    /**
+     * <h3>Удаление пользователя.</h3>
+     * <p>
+     * <b>Доступно владельцу профиля (с подтверждением пароля) или администратору (без пароля).</b>
+     * </p>
+     *
+     * @param userId идентификатор пользователя
+     * @param password пароль для подтверждения (обязателен для владельца)
+     * @param authContext контекст аутентификации
+     * @throws EntityNotFoundException если пользователь не найден
+     * @throws AccessDeniedException если пароль неверен (для не-админа)
+     */
     public void deleteUser(Long userId, String password, AuthContext authContext) {
 
         SecurityUtil.checkAdminOrOwner(authContext, userId);

@@ -17,7 +17,20 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-
+/**
+ * <h3>Сервис для управления ролями пользователей.</h3>
+ * <p>
+ * Все методы сервиса доступны только администраторам системы.
+ * Обычные пользователи не имеют доступа к информации о ролях.
+ * </p>
+ * <p>
+ * Роли используются для разграничения прав доступа:
+ * <ul>
+ *     <li>{@code ADMIN} — полный доступ ко всем функциям системы</li>
+ *     <li>{@code USER} — базовый доступ (счета, карты, переводы)</li>
+ * </ul>
+ * </p>
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class RoleService {
@@ -27,6 +40,24 @@ public class RoleService {
     private final UserReadMapper userReadMapper;
     private final EntityManagerFactory entityManagerFactory;
 
+    /**
+     * <h3>Создание новой роли.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     * <p>Требования к имени роли:
+     * <ul>
+     *     <li>не может быть пустым</li>
+     *     <li>длина не менее 3 символов</li>
+     *     <li>должно быть уникальным (регистронезависимо)</li>
+     * </ul>
+     * </p>
+     *
+     * @param roleName     имя новой роли
+     * @param authContext  контекст аутентификации
+     * @throws IllegalArgumentException если имя роли не соответствует требованиям
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public void createRole(String roleName, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -61,6 +92,18 @@ public class RoleService {
         }
     }
 
+    /**
+     * <h3>Поиск роли по идентификатору.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param roleId       идентификатор роли
+     * @param authContext  контекст аутентификации
+     * @return DTO с информацией о роли
+     * @throws EntityNotFoundException если роль не найдена
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public RoleReadDto findById(Long roleId, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -75,6 +118,20 @@ public class RoleService {
         }
     }
 
+    /**
+     * <h3>Поиск роли по имени.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * Поиск выполняется без учета регистра.
+     * </p>
+     *
+     * @param name         имя роли
+     * @param authContext  контекст аутентификации
+     * @return DTO с информацией о роли
+     * @throws IllegalArgumentException если имя роли пустое
+     * @throws EntityNotFoundException если роль не найдена
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public RoleReadDto findByName(String name, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -93,6 +150,16 @@ public class RoleService {
         }
     }
 
+    /**
+     * Получение списка всех ролей.
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param authContext контекст аутентификации
+     * @return список всех ролей в системе
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public List<RoleReadDto> findAll(AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -108,6 +175,20 @@ public class RoleService {
         }
     }
 
+    /**
+     * <h3>Обновление имени роли.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param roleId       идентификатор роли
+     * @param newName      новое имя роли
+     * @param authContext  контекст аутентификации
+     * @return DTO с обновленной информацией о роли
+     * @throws EntityNotFoundException если роль не найдена
+     * @throws IllegalArgumentException если новое имя не соответствует требованиям или уже существует
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public RoleReadDto updateRole(Long roleId, String newName, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -149,6 +230,19 @@ public class RoleService {
         }
     }
 
+    /**
+     * <h3>Удаление роли.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * Роль не может быть удалена, если она назначена хотя бы одному пользователю.
+     * </p>
+     *
+     * @param roleId       идентификатор роли
+     * @param authContext  контекст аутентификации
+     * @throws EntityNotFoundException если роль не найдена
+     * @throws IllegalStateException если роль используется
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public void deleteRole(Long roleId, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -178,7 +272,18 @@ public class RoleService {
         }
     }
 
-
+    /**
+     * <h3>Назначение роли пользователю.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param userId       идентификатор пользователя
+     * @param roleId       идентификатор роли
+     * @param authContext  контекст аутентификации
+     * @throws EntityNotFoundException если пользователь или роль не найдены
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public void assignRoleToUser(Long userId, Long roleId, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -213,7 +318,18 @@ public class RoleService {
         }
     }
 
-
+    /**
+     * <h3>Назначение нескольких ролей пользователю.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param userId       идентификатор пользователя
+     * @param roleIds      набор идентификаторов ролей
+     * @param authContext  контекст аутентификации
+     * @throws EntityNotFoundException если пользователь или какая-либо роль не найдены
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public void assignRolesToUser(Long userId, Set<Long> roleIds, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -250,6 +366,18 @@ public class RoleService {
         }
     }
 
+    /**
+     * <h3>Удаление роли у пользователя.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param userId       идентификатор пользователя
+     * @param roleId       идентификатор роли
+     * @param authContext  контекст аутентификации
+     * @throws EntityNotFoundException если пользователь или роль не найдены
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public void removeRoleFromUser(Long userId, Long roleId, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -282,6 +410,17 @@ public class RoleService {
         }
     }
 
+    /**
+     * <h3>Удаление всех ролей у пользователя.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param userId       идентификатор пользователя
+     * @param authContext  контекст аутентификации
+     * @throws EntityNotFoundException если пользователь не найден
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public void removeAllRolesFromUser(Long userId, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -311,6 +450,18 @@ public class RoleService {
         }
     }
 
+    /**
+     * <h3>Получение списка пользователей с определенной ролью.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param roleId       идентификатор роли
+     * @param authContext  контекст аутентификации
+     * @return список DTO пользователей, имеющих указанную роль
+     * @throws EntityNotFoundException если роль не найдена
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public List<UserReadDto> getUsersWithRole(Long roleId, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
@@ -328,6 +479,18 @@ public class RoleService {
         }
     }
 
+    /**
+     * <h3>Получение всех ролей пользователя.</h3>
+     * <p>
+     * <b>Доступно только администратору.</b>
+     * </p>
+     *
+     * @param userId       идентификатор пользователя
+     * @param authContext  контекст аутентификации
+     * @return набор DTO ролей пользователя
+     * @throws EntityNotFoundException если пользователь не найден
+     * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
+     */
     public Set<RoleReadDto> getUserRoles(Long userId, AuthContext authContext) {
         SecurityUtil.checkAdmin(authContext);
 
