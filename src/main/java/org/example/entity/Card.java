@@ -2,6 +2,7 @@ package org.example.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 import org.example.entity.enums.CardStatus;
 import org.example.entity.enums.CardType;
@@ -13,6 +14,7 @@ import java.util.Objects;
 @Entity
 @Table(name = "cards")
 @Getter
+@Setter
 @ToString(exclude = {"user", "account"})
 public class Card {
     @Id
