@@ -62,16 +62,21 @@ import jakarta.persistence.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dao.AccountDao;
+import org.example.dao.TransactionDao;
+import org.example.dto.idempotency_key.IdempotencyKeyReadDto;
 import org.example.dto.transation.TransactionCreateDto;
 import org.example.dto.transation.TransactionReadDto;
 import org.example.entity.Account;
 import org.example.entity.BankTransaction;
 import org.example.entity.enums.Status;
 import org.example.entity.enums.TransactionStatus;
+import org.example.mapper.TransactionReadMapper;
 import org.example.security.AuthContext;
 import org.example.util.SecurityUtil;
 import org.example.util.ValidatorUtil;
 import org.hibernate.Session;
+
+import javax.swing.text.html.Option;
 import java.sql.Connection;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -81,7 +86,10 @@ import java.util.Optional;
 public class TransactionService {
 
     private final AccountDao accountDao;
+    private final TransactionDao transactionDao;
     private final EntityManagerFactory emf;
+    private final TransactionReadMapper transactionReadMapper;
+    private final IdempotencyService idempotencyService;
 
     public TransactionReadDto transfer(TransactionCreateDto transactionCreateDto, AuthContext authContext) {
         //  Валидация входных данных
@@ -89,6 +97,65 @@ public class TransactionService {
 
         // Проверка прав
         SecurityUtil.checkOwner(authContext, transactionCreateDto.fromAccountId());
+
+        // Проверка на идемпотентность (если повторно одно и то же, то чекнуть статус, если pending, то дать возможность повторить?)
+
+        if (transactionCreateDto.idempotencyKey() == null) throw new IllegalArgumentException("Не передан ключ идемпотентности");
+
+        Optional<IdempotencyKeyReadDto> idempotencyKeyReadDtoOptional = idempotencyService.getKey(transactionCreateDto.idempotencyKey());
+
+        if(idempotencyKeyReadDtoOptional.isPresent()) {
+            // ключ уже есть => повторная операция, посмотреть статус связанной транзакции
+            IdempotencyKeyReadDto idempotencyKeyReadDto = idempotencyKeyReadDtoOptional.get();
+
+
+            // Если ключ просроченный, то удалить запись и выкинуть исклчени
+            if(idempotencyKeyReadDto.expiresAt().isBefore(LocalDateTime.now())) {
+                // delete(key)
+                throw new IllegalStateException("Ключ просроченный");
+            }
+
+            // Айдишка транзакции из ключа
+            Long transactionId = idempotencyKeyReadDto.transactionId();
+
+            if(transactionId != null) {
+                try (EntityManager em = emf.createEntityManager()) {
+
+                    Optional<BankTransaction> transactionOptional = transactionDao.findById(em, transactionId);
+
+                    // Если транзакция из ключа существует.
+                    // Если её нет в ключе, то для этого ключа будет создана новая?
+                    // Так-то ключ уже в БД и если он не на что не указывает, то его нужно снести.
+                    if(transactionOptional.isPresent()) {
+
+                        TransactionStatus status = transactionOptional.get().getStatus();
+
+                        switch (status) {
+                            case PENDING -> {
+                                // Повторный запрос на выполнение - вернуть в ожидание.
+                                throw new IllegalStateException("Транзакция уже обрабатывается");
+                            }
+                            case SUCCESS -> {
+                                // Успешно - возвращаем результат
+                                return transactionReadMapper.map(transactionOptional.get());
+                            }
+                            case FAILED -> {
+                                // Транзакция неуспещна, т.е ключ указывает на неудачную - это некорректное состояние, нужно повторить.
+                                throw new IllegalStateException("Предыдущая транзакция не удалась");
+                            }
+                        }
+                    } else{
+                            // keyService.delete(key);
+                        throw new IllegalStateException("В ключе отсутствует привязанная транзакция");
+                    }
+
+                }
+            } else {
+                // Айдишника нет
+                // keyService.delete(key);
+                throw new IllegalStateException("В ключе отсутствует привязанная транзакция");
+            }
+        }
 
         EntityManager em = emf.createEntityManager();
         Session session = em.unwrap(Session.class);
@@ -135,6 +202,8 @@ public class TransactionService {
             session.persist(bankTransaction);
             session.flush();
 
+            // TODO: вот здесь создать запись ключа и вытолкнуть контекст flush(). Клю
+
             //  Списание с from_account / Зачисление на to_account
             fromAccount.setBalance(fromAccount.getBalance().subtract(transactionCreateDto.amount()));
             toAccount.setBalance(toAccount.getBalance().add(transactionCreateDto.amount()));
@@ -149,7 +218,7 @@ public class TransactionService {
 
             // TODO: сделать перехватчик на выталкивание контекста и делать запись в лог
            // Запись в аудит баланса (AccountBalanceAudit)
-            return BankTransactionReadMapper.map(bankTransaction);
+            return transactionReadMapper.map(bankTransaction);
 
         } catch (Exception e) {
             if (tx.isActive()) {
@@ -160,6 +229,6 @@ public class TransactionService {
         } finally {
             em.close();
         }
-
     }
+
 }

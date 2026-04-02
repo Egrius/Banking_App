@@ -2,6 +2,8 @@ package org.example.dao;
 
 import jakarta.persistence.EntityManager;
 import org.example.entity.BankTransaction;
+import org.example.entity.enums.Status;
+import org.example.entity.enums.TransactionStatus;
 
 import java.util.List;
 
@@ -29,4 +31,11 @@ public class TransactionDao extends BaseDaoImpl<BankTransaction, Long> {
                 .setParameter("accountId", accountId)
                 .getSingleResult();
     }
+
+    public TransactionStatus getTransactionStatus(EntityManager em, Long transactionId) {
+        return em.createQuery("SELECT t.status FROM BankTransaction t WHERE t.id = :transactionId", TransactionStatus.class)
+                .setParameter("transactionId", transactionId)
+                .getSingleResult();
+    }
+
 }
