@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "idempotency_keys", uniqueConstraints = {
-        @UniqueConstraint(name = "key_uq", columnNames = {"key", "transaction", "account", "user"})
+        @UniqueConstraint(name = "key_uq", columnNames = {"key"})
 })
 @Getter
 @Setter
@@ -21,27 +21,26 @@ public class IdempotencyKey {
     @SequenceGenerator(name = "idempotency_key_seq", sequenceName = "idempotency_key_id_seq", allocationSize = 1)
     private Long id;
 
-    @Column(name = "key")
+    @Column(name = "key", nullable = false)
     private UUID key;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "transaction_id")
+    @JoinColumn(name = "transaction_id", nullable = false)
     private BankTransaction transaction;
 
-
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "account_id")
-    private Account account;
-
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private User user;
-
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
     protected IdempotencyKey(){}
+
+    public static IdempotencyKey from(UUID key,  BankTransaction transaction, LocalDateTime createdAt) {
+        IdempotencyKey newKey = new IdempotencyKey();
+        newKey.setKey(key);
+        newKey.setTransaction(transaction);
+        newKey.setCreatedAt(createdAt);
+        return newKey;
+    }
 }

@@ -63,11 +63,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dao.AccountDao;
 import org.example.dao.TransactionDao;
+import org.example.dto.idempotency_key.IdempotencyKeyCreateDto;
 import org.example.dto.idempotency_key.IdempotencyKeyReadDto;
 import org.example.dto.transation.TransactionCreateDto;
 import org.example.dto.transation.TransactionReadDto;
 import org.example.entity.Account;
 import org.example.entity.BankTransaction;
+import org.example.entity.IdempotencyKey;
 import org.example.entity.enums.Status;
 import org.example.entity.enums.TransactionStatus;
 import org.example.mapper.TransactionReadMapper;
@@ -108,11 +110,10 @@ public class TransactionService {
             // ключ уже есть => повторная операция, посмотреть статус связанной транзакции
             IdempotencyKeyReadDto idempotencyKeyReadDto = idempotencyKeyReadDtoOptional.get();
 
-
             // Если ключ просроченный, то удалить запись и выкинуть исклчени
             if(idempotencyKeyReadDto.expiresAt().isBefore(LocalDateTime.now())) {
                 // delete(key)
-                throw new IllegalStateException("Ключ просроченный");
+                throw new IllegalStateException("Ключ просроченный, повторите ещё раз с новым ключом");
             }
 
             // Айдишка транзакции из ключа
@@ -141,43 +142,51 @@ public class TransactionService {
                             }
                             case FAILED -> {
                                 // Транзакция неуспещна, т.е ключ указывает на неудачную - это некорректное состояние, нужно повторить.
-                                throw new IllegalStateException("Предыдущая транзакция не удалась");
+                                // Ключ по идее нужно удалить из бд
+                                return transactionReadMapper.map(transactionOptional.get());
                             }
                         }
-                    } else{
-                            // keyService.delete(key);
-                        throw new IllegalStateException("В ключе отсутствует привязанная транзакция");
                     }
-
                 }
-            } else {
-                // Айдишника нет
-                // keyService.delete(key);
+            } else{
+                idempotencyService.delete(idempotencyKeyReadDto.id());
                 throw new IllegalStateException("В ключе отсутствует привязанная транзакция");
             }
         }
 
         EntityManager em = emf.createEntityManager();
-        Session session = em.unwrap(Session.class);
-        org.hibernate.Transaction tx = session.beginTransaction();
+        EntityTransaction tx = em.getTransaction();
+        // Session session = em.unwrap(Session.class);
+        // org.hibernate.Transaction tx = session.beginTransaction();
 
         try {
-            session.doWork(connection -> connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ));
+
+            tx.begin();
+
+            Long id1 = transactionCreateDto.fromAccountId();
+            Long id2 = transactionCreateDto.toAccountId();
+
+            Long firstId = id1 < id2 ? id1 : id2;
+            Long secondId = id1 < id2 ? id2 : id1;
 
             // Проверка статусов счетов (получить + проверить)
-            Account fromAccount = Optional.of(session.find(Account.class, transactionCreateDto.fromAccountId(), LockModeType.PESSIMISTIC_WRITE))
+            Account first  = Optional.of(em.find(Account.class, firstId, LockModeType.PESSIMISTIC_WRITE))
                     .orElseThrow(() -> new EntityNotFoundException("Аккаунт отправителя с id " + transactionCreateDto.fromAccountId() + " не найден"));
+
+            Account second = Optional.of(em.find(Account.class, secondId, LockModeType.PESSIMISTIC_WRITE))
+                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт получателя с id " + transactionCreateDto.toAccountId() + " не найден"));
+
+            Account fromAccount = first.getId().equals(id1) ? first : second;
+            Account toAccount = fromAccount == first ? second : first;
 
             if(fromAccount.getStatus() == Status.BLOCKED || fromAccount.getStatus() == Status.CLOSED) {
                 throw new IllegalStateException("Нельзя выполнить транзакцию со счёта со статусом " + fromAccount.getStatus());
             }
 
-            Account toAccount = Optional.of(session.find(Account.class, transactionCreateDto.toAccountId(), LockModeType.PESSIMISTIC_WRITE))
-                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт получателя с id " + transactionCreateDto.toAccountId() + " не найден"));
-
             if(toAccount.getStatus() == Status.BLOCKED || toAccount.getStatus() == Status.CLOSED) {
                 throw new IllegalStateException("Нельзя перевести средства счёт со статусом " + toAccount.getStatus());
             }
+
             // Проверка лимитов(дневной лимит + максимальная сумма) (пока не реализовано)
 
             // Проверка достаточности средств
@@ -199,16 +208,22 @@ public class TransactionService {
                     .description(transactionCreateDto.description())
                     .build();
 
-            session.persist(bankTransaction);
-            session.flush();
+            em.persist(bankTransaction);
+            em.flush();
 
-            // TODO: вот здесь создать запись ключа и вытолкнуть контекст flush(). Клю
+            IdempotencyKeyCreateDto idempotencyKeyCreateDto = new IdempotencyKeyCreateDto(
+                    transactionCreateDto.idempotencyKey(),
+                    bankTransaction,
+                    LocalDateTime.now()
+            );
+
+            idempotencyService.createKey(idempotencyKeyCreateDto, em);
 
             //  Списание с from_account / Зачисление на to_account
             fromAccount.setBalance(fromAccount.getBalance().subtract(transactionCreateDto.amount()));
             toAccount.setBalance(toAccount.getBalance().add(transactionCreateDto.amount()));
 
-            // Обновление статуса транзакции → SUCCESS / FAILED
+            // Обновление статуса транзакции -> SUCCESS / FAILED
             bankTransaction.setStatus(TransactionStatus.SUCCESS);
             bankTransaction.setProcessedAt(LocalDateTime.now());
             bankTransaction.setFromBalanceAfter(fromAccount.getBalance());
@@ -230,5 +245,4 @@ public class TransactionService {
             em.close();
         }
     }
-
 }

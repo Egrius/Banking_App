@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record IdempotencyKeyReadDto (
+        Long id,
         UUID key,
         Long transactionId,
         Long accountId,
