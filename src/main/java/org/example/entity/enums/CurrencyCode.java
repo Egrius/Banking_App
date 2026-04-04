@@ -1,7 +1,7 @@
 package org.example.entity.enums;
 
 public enum CurrencyCode {
-    RUB("RUB"), EUR("EUR"), US("US");
+    RUB("RUB"), EUR("EUR" ), US("US");
 
     private final String abbreviation;
 

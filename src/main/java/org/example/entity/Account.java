@@ -63,8 +63,8 @@ public class Account {
             orphanRemoval = true)
     private Collection<TransactionTemplate> transactionTemplates = new ArrayList<>();
 
-    @OneToMany(mappedBy = "account", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
-    private Collection<AccountBalanceAudit> balanceAudits = new ArrayList<>();
+    //@OneToMany(mappedBy = "account", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    //private Collection<AccountBalanceAudit> balanceAudits = new ArrayList<>();
 
     @OneToMany(mappedBy = "fromAccount")
     private Collection<BankTransaction> outgoingTransactions = new ArrayList<>();

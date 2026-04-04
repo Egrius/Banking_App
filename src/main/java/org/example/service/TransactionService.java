@@ -68,18 +68,16 @@ import org.example.dto.idempotency_key.IdempotencyKeyReadDto;
 import org.example.dto.transation.TransactionCreateDto;
 import org.example.dto.transation.TransactionReadDto;
 import org.example.entity.Account;
+import org.example.entity.AccountBalanceAudit;
 import org.example.entity.BankTransaction;
-import org.example.entity.IdempotencyKey;
 import org.example.entity.enums.Status;
 import org.example.entity.enums.TransactionStatus;
 import org.example.mapper.TransactionReadMapper;
 import org.example.security.AuthContext;
 import org.example.util.SecurityUtil;
 import org.example.util.ValidatorUtil;
-import org.hibernate.Session;
 
-import javax.swing.text.html.Option;
-import java.sql.Connection;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -87,7 +85,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class TransactionService {
 
-    private final AccountDao accountDao;
     private final TransactionDao transactionDao;
     private final EntityManagerFactory emf;
     private final TransactionReadMapper transactionReadMapper;
@@ -156,8 +153,6 @@ public class TransactionService {
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
-        // Session session = em.unwrap(Session.class);
-        // org.hibernate.Transaction tx = session.beginTransaction();
 
         try {
 
@@ -187,6 +182,10 @@ public class TransactionService {
                 throw new IllegalStateException("Нельзя перевести средства счёт со статусом " + toAccount.getStatus());
             }
 
+            if(fromAccount.getCurrencyCode() != toAccount.getCurrencyCode()) {
+                throw new IllegalStateException("Нельзя выполнить перевод между разновалютными счетами!");
+            }
+
             // Проверка лимитов(дневной лимит + максимальная сумма) (пока не реализовано)
 
             // Проверка достаточности средств
@@ -197,13 +196,17 @@ public class TransactionService {
             // Создание записи транзакции со статусом PENDING
             // TODO расмотреть перевод различных валют (т.е нужно рассчитать сколько переводить со счета с зарегестрированной валютой)
             // TODO сущность с ключами идемпотентности и привязка к транзакции
+
+            BigDecimal fromBalanceBefore = fromAccount.getBalance();
+            BigDecimal toBalanceBefore = toAccount.getBalance();
+
             BankTransaction bankTransaction = BankTransaction.builder()
                     .fromAccount(fromAccount)
                     .toAccount(toAccount)
                     .amount(transactionCreateDto.amount())
                     .status(TransactionStatus.PENDING)
-                    .fromBalanceBefore(fromAccount.getBalance())
-                    .toBalanceBefore(toAccount.getBalance())
+                    .fromBalanceBefore(fromBalanceBefore)
+                    .toBalanceBefore(toBalanceBefore)
                     .createdAt(LocalDateTime.now())
                     .description(transactionCreateDto.description())
                     .build();
@@ -219,9 +222,12 @@ public class TransactionService {
 
             idempotencyService.createKey(idempotencyKeyCreateDto, em);
 
+            BigDecimal fromBalanceAfter =fromAccount.getBalance().subtract(transactionCreateDto.amount());
+            BigDecimal toBalanceAfter = toAccount.getBalance().add(transactionCreateDto.amount());
+
             //  Списание с from_account / Зачисление на to_account
-            fromAccount.setBalance(fromAccount.getBalance().subtract(transactionCreateDto.amount()));
-            toAccount.setBalance(toAccount.getBalance().add(transactionCreateDto.amount()));
+            fromAccount.setBalance(fromBalanceAfter);
+            toAccount.setBalance(toBalanceAfter);
 
             // Обновление статуса транзакции -> SUCCESS / FAILED
             bankTransaction.setStatus(TransactionStatus.SUCCESS);
@@ -229,10 +235,17 @@ public class TransactionService {
             bankTransaction.setFromBalanceAfter(fromAccount.getBalance());
             bankTransaction.setToBalanceAfter(toAccount.getBalance());
 
+            // Запись в аудит баланса (AccountBalanceAudit)
+            AccountBalanceAudit fromAudit = new AccountBalanceAudit(fromAccount, fromBalanceBefore, fromBalanceAfter, Thread.currentThread().getName());
+            AccountBalanceAudit toAudit = new AccountBalanceAudit(toAccount, toBalanceBefore, toBalanceAfter, Thread.currentThread().getName());
+
+            em.persist(fromAudit);
+            em.persist(toAudit);
+
             tx.commit();
 
             // TODO: сделать перехватчик на выталкивание контекста и делать запись в лог
-           // Запись в аудит баланса (AccountBalanceAudit)
+
             return transactionReadMapper.map(bankTransaction);
 
         } catch (Exception e) {

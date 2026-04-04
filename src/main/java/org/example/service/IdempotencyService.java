@@ -1,7 +1,6 @@
 package org.example.service;
 
 import jakarta.persistence.*;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dao.IdempotencyKeyDao;
 import org.example.dto.idempotency_key.IdempotencyKeyCreateDto;
@@ -13,15 +12,57 @@ import org.example.util.ValidatorUtil;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
-@RequiredArgsConstructor
 public class IdempotencyService {
 
     private final EntityManagerFactory emf;
     private final IdempotencyKeyDao keyDao;
     private final IdempotencyKeyReadMapper keyReadMapper;
     private final IdempotencyKeyCreateMapper keyCreateMapper;
+
+    private static final ScheduledExecutorService scheduledCleaner = Executors.newSingleThreadScheduledExecutor();
+
+
+    public IdempotencyService(EntityManagerFactory emf, IdempotencyKeyDao keyDao, IdempotencyKeyReadMapper keyReadMapper, IdempotencyKeyCreateMapper keyCreateMapper) {
+        this.emf = emf;
+        this.keyDao = keyDao;
+        this.keyReadMapper = keyReadMapper;
+        this.keyCreateMapper = keyCreateMapper;
+
+    }
+
+    private Runnable assignCleanTask(EntityManagerFactory emf) {
+        return () -> {
+            EntityManager em = emf.createEntityManager();
+            EntityTransaction tx = em.getTransaction();
+            try {
+                tx.begin();
+                keyDao.deleteAllExpired(em);
+                tx.commit();
+            } catch (Exception e) {
+                if (tx.isActive()) tx.rollback();
+            } finally {
+                em.close();
+            }
+        };
+
+    }
+
+    public static void close() {
+        scheduledCleaner.shutdown();
+
+        try{
+            if(!scheduledCleaner.awaitTermination(10, TimeUnit.SECONDS)) {
+                scheduledCleaner.shutdown();
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public Optional<IdempotencyKeyReadDto> getKey(UUID key) {
         try(EntityManager em = emf.createEntityManager();) {
@@ -40,9 +81,6 @@ public class IdempotencyService {
 
         ValidatorUtil.validate(createDto);
 
-        // EntityManager em = emf.createEntityManager();
-       // EntityTransaction tx = em.getTransaction();
-
         try {
 
             IdempotencyKey keyToCreate = keyCreateMapper.map(createDto);
@@ -55,7 +93,6 @@ public class IdempotencyService {
         } catch (Exception e) {
             log.error("Ошибка при создании записи ключа в БД: {}", e.getMessage());
             throw e;
-            //if(tx.isActive()) tx.rollback();
         }
     }
 
