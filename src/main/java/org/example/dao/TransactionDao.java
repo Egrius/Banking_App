@@ -8,8 +8,8 @@ import org.example.entity.enums.TransactionStatus;
 import java.util.List;
 
 public class TransactionDao extends BaseDaoImpl<BankTransaction, Long> {
-    public TransactionDao(Class<BankTransaction> entityClass) {
-        super(entityClass);
+    public TransactionDao() {
+        super(BankTransaction.class);
     }
 
     public List<BankTransaction> findByToAccountId(EntityManager em, Long accountId, int pageNum, int pageSize) {

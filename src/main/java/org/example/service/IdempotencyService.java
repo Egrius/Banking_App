@@ -26,13 +26,24 @@ public class IdempotencyService {
 
     private static final ScheduledExecutorService scheduledCleaner = Executors.newSingleThreadScheduledExecutor();
 
+    private static IdempotencyService INSTANCE = null;
 
-    public IdempotencyService(EntityManagerFactory emf, IdempotencyKeyDao keyDao, IdempotencyKeyReadMapper keyReadMapper, IdempotencyKeyCreateMapper keyCreateMapper) {
+    public static IdempotencyService getInstance(EntityManagerFactory emf, IdempotencyKeyDao keyDao, IdempotencyKeyReadMapper keyReadMapper, IdempotencyKeyCreateMapper keyCreateMapper) {
+        if(INSTANCE == null) {
+            synchronized (IdempotencyService.class) {
+                INSTANCE = new IdempotencyService(emf, keyDao, keyReadMapper, keyCreateMapper);
+            }
+        }
+        return INSTANCE;
+    }
+
+    private IdempotencyService(EntityManagerFactory emf, IdempotencyKeyDao keyDao, IdempotencyKeyReadMapper keyReadMapper, IdempotencyKeyCreateMapper keyCreateMapper) {
         this.emf = emf;
         this.keyDao = keyDao;
         this.keyReadMapper = keyReadMapper;
         this.keyCreateMapper = keyCreateMapper;
 
+        scheduledCleaner.scheduleWithFixedDelay(assignCleanTask(this.emf), 1, 5, TimeUnit.MINUTES);
     }
 
     private Runnable assignCleanTask(EntityManagerFactory emf) {
@@ -49,7 +60,6 @@ public class IdempotencyService {
                 em.close();
             }
         };
-
     }
 
     public static void close() {
@@ -57,7 +67,7 @@ public class IdempotencyService {
 
         try{
             if(!scheduledCleaner.awaitTermination(10, TimeUnit.SECONDS)) {
-                scheduledCleaner.shutdown();
+                scheduledCleaner.shutdownNow();
             }
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
@@ -66,15 +76,13 @@ public class IdempotencyService {
 
     public Optional<IdempotencyKeyReadDto> getKey(UUID key) {
         try(EntityManager em = emf.createEntityManager();) {
-
-            IdempotencyKey idempotencyKey = keyDao.findByKeySignature(em, key);
-
-            if(idempotencyKey != null) {
+            try {
+                IdempotencyKey idempotencyKey = keyDao.findByKeySignature(em, key);
                 return Optional.of(keyReadMapper.map(idempotencyKey));
+            } catch (NoResultException e) {
+                return Optional.empty();
             }
-            return Optional.empty();
         }
-
     }
 
     public void createKey(IdempotencyKeyCreateDto createDto, EntityManager em) {

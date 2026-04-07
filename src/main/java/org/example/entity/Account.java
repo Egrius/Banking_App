@@ -19,7 +19,7 @@ import java.util.Objects;
 
 @Entity
 @Table(name = "accounts", uniqueConstraints = {
-        @UniqueConstraint (name = "account_user_uq", columnNames = {"user_id, account_type"})})
+        @UniqueConstraint (name = "account_user_uq", columnNames = {"user_id", "account_type"})})
 @Getter
 @Setter
 @ToString(exclude = {"user"})

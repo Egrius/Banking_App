@@ -11,8 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class AuditDao extends BaseDaoImpl<AuditLog, Long>{
-    public AuditDao(Class<AuditLog> entityClass) {
-        super(entityClass);
+    public AuditDao() {
+        super(AuditLog.class);
     }
 
     public List<AuditLog> findByUserId(EntityManager em, Long userId, PageRequest pageRequest) {

@@ -59,7 +59,6 @@ package org.example.service;
  */
 
 import jakarta.persistence.*;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dao.AccountDao;
 import org.example.dao.TransactionDao;
@@ -72,23 +71,48 @@ import org.example.entity.AccountBalanceAudit;
 import org.example.entity.BankTransaction;
 import org.example.entity.enums.Status;
 import org.example.entity.enums.TransactionStatus;
+import org.example.interceptor.AuditLogTransactionInterceptor;
 import org.example.mapper.TransactionReadMapper;
 import org.example.security.AuthContext;
 import org.example.util.SecurityUtil;
 import org.example.util.ValidatorUtil;
+import org.hibernate.cfg.AvailableSettings;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.event.service.spi.EventListenerRegistry;
+import org.hibernate.event.spi.EventType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
-@RequiredArgsConstructor
 public class TransactionService {
 
-    private final TransactionDao transactionDao;
     private final EntityManagerFactory emf;
+    private final AccountDao accountDao;
+    private final TransactionDao transactionDao;
     private final TransactionReadMapper transactionReadMapper;
     private final IdempotencyService idempotencyService;
+    private final AuditService auditService;
+
+    public TransactionService(AccountDao accountDao, TransactionDao transactionDao, EntityManagerFactory emf, TransactionReadMapper transactionReadMapper, IdempotencyService idempotencyService, AuditService auditService) {
+        this.accountDao = accountDao;
+        this.transactionDao = transactionDao;
+        this.emf = emf;
+        this.transactionReadMapper = transactionReadMapper;
+        this.idempotencyService = idempotencyService;
+        this.auditService = auditService;
+
+        EventListenerRegistry registry = emf.unwrap(SessionFactoryImplementor.class).getServiceRegistry()
+                .getService(EventListenerRegistry.class);
+
+        AuditLogTransactionInterceptor auditInterceptor = new AuditLogTransactionInterceptor(auditService);
+
+        registry.appendListeners(EventType.POST_INSERT, auditInterceptor);
+        registry.appendListeners(EventType.POST_UPDATE, auditInterceptor);
+    }
 
     public TransactionReadDto transfer(TransactionCreateDto transactionCreateDto, AuthContext authContext) {
         //  Валидация входных данных
@@ -151,7 +175,10 @@ public class TransactionService {
             }
         }
 
-        EntityManager em = emf.createEntityManager();
+        Map<String, String> properties = new HashMap<>();
+        properties.put(AvailableSettings.INTERCEPTOR, AuditLogTransactionInterceptor.class.getName());
+
+        EntityManager em = emf.createEntityManager(properties);
         EntityTransaction tx = em.getTransaction();
 
         try {
@@ -165,10 +192,18 @@ public class TransactionService {
             Long secondId = id1 < id2 ? id2 : id1;
 
             // Проверка статусов счетов (получить + проверить)
+            /*
             Account first  = Optional.of(em.find(Account.class, firstId, LockModeType.PESSIMISTIC_WRITE))
                     .orElseThrow(() -> new EntityNotFoundException("Аккаунт отправителя с id " + transactionCreateDto.fromAccountId() + " не найден"));
 
             Account second = Optional.of(em.find(Account.class, secondId, LockModeType.PESSIMISTIC_WRITE))
+                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт получателя с id " + transactionCreateDto.toAccountId() + " не найден"));
+             */
+
+            Account first = accountDao.findByIdWithUserAndPessimisticWrite(em, firstId)
+                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт отправителя с id " + transactionCreateDto.fromAccountId() + " не найден"));
+
+            Account second = accountDao.findByIdWithUserAndPessimisticWrite(em, secondId)
                     .orElseThrow(() -> new EntityNotFoundException("Аккаунт получателя с id " + transactionCreateDto.toAccountId() + " не найден"));
 
             Account fromAccount = first.getId().equals(id1) ? first : second;
@@ -194,8 +229,6 @@ public class TransactionService {
             }
 
             // Создание записи транзакции со статусом PENDING
-            // TODO расмотреть перевод различных валют (т.е нужно рассчитать сколько переводить со счета с зарегестрированной валютой)
-            // TODO сущность с ключами идемпотентности и привязка к транзакции
 
             BigDecimal fromBalanceBefore = fromAccount.getBalance();
             BigDecimal toBalanceBefore = toAccount.getBalance();

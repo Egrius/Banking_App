@@ -31,10 +31,10 @@ import java.util.ConcurrentModificationException;
 @RequiredArgsConstructor
 public class UserService {
 
+    private final EntityManagerFactory emf;
     private final UserDao userDao;
     private final UserReadMapper userReadMapper;
     private final UserUpdateMapper userUpdateMapper;
-    private final EntityManagerFactory emf;
     /**
      * <h3>Регистрация нового пользователя.</h3>
      * <p>

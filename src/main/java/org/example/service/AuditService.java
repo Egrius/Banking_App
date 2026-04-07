@@ -21,9 +21,9 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class AuditService {
 
-    private final AuditDao auditDao;
-    private final EntityManagerFactory emf;
 
+    private final EntityManagerFactory emf;
+    private final AuditDao auditDao;
     private final AuditLogReadMapper auditLogReadMapper;
 
     private static final ExecutorService asyncLogPool = Executors.newSingleThreadExecutor();
@@ -55,7 +55,7 @@ public class AuditService {
             tx.commit();
         } catch (Exception e) {
             if(tx.isActive()) tx.rollback();
-            throw e;
+            log.error("Ошибка при создании независимого лога для: {}", auditLog, e);
         } finally {
             independentEm.close();
         }
@@ -71,7 +71,7 @@ public class AuditService {
                 tx.commit();
             } catch (Exception e) {
                 if(tx.isActive()) tx.rollback();
-                throw e;
+                log.error("Создание асинхронного аудита завершилось неудачно для: {}", auditLog, e);
             } finally {
                 em.close();
             }
@@ -90,7 +90,7 @@ public class AuditService {
                     .map(auditLogReadMapper::map)
                     .toList();
 
-            return new PageResponse<AuditLogReadDto>(result, pageRequest.getPageNumber(), pageRequest.getPageSize(), auditsTotal);
+            return new PageResponse<>(result, pageRequest.getPageNumber(), pageRequest.getPageSize(), auditsTotal);
         } finally {
             em.close();
         }

@@ -1,11 +1,14 @@
 package org.example.dao;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.NoResultException;
 import org.example.entity.Account;
 import org.example.entity.AccountBalanceAudit;
 import org.example.entity.enums.AccountType;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 
 public class AccountDao extends BaseDaoImpl<Account, Long> {
     public AccountDao() {
@@ -53,5 +56,16 @@ public class AccountDao extends BaseDaoImpl<Account, Long> {
                         "WHERE aud.account.id = :accountId", Long.class)
                 .setParameter("accountId", accountId)
                 .getSingleResult();
+    }
+
+    public Optional<Account> findByIdWithUserAndPessimisticWrite(EntityManager em, Long id) {
+        return em.createQuery("SELECT a FROM Account a " +
+                        "JOIN FETCH a.user " +
+                        "WHERE a.id = :id", Account.class)
+                .setParameter("id", id)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList()
+                .stream()
+                .findFirst();
     }
 }

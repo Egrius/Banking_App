@@ -139,6 +139,11 @@ public class AuditLog {
             return this;
         }
 
+        public Builder email(String email) {
+            this.email = email;
+            return this;
+        }
+
         public Builder username(String email) {
             this.email = email;
             return this;

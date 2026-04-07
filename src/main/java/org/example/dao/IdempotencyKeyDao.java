@@ -24,7 +24,7 @@ public class IdempotencyKeyDao extends BaseDaoImpl<IdempotencyKey, Long> {
     }
 
     public boolean keyExistsBySignature(EntityManager em, UUID key) {
-        return em.createQuery("SELECT 1 FROM IdempotencyKey k WHERE k.key = :key)", IdempotencyKey.class)
+        return em.createQuery("SELECT 1 FROM IdempotencyKey k WHERE k.key = :key", IdempotencyKey.class)
                 .setParameter("key", key)
                 .getResultList()
                 .isEmpty();
