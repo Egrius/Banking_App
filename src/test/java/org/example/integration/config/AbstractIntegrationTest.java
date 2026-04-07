@@ -19,6 +19,7 @@ import java.util.Properties;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class AbstractIntegrationTest {
 
+    private static final String PATH_TO_SQL_FOLDER = "src/test/java/org/example/integration/sql/";
     @Container
     private static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:15-alpine")
             .withDatabaseName("bank_db_test")
@@ -81,7 +82,7 @@ public abstract class AbstractIntegrationTest {
     protected void runSql(String pathToSqlFile) {
         if(!pathToSqlFile.endsWith(".sql")) throw new IllegalArgumentException("Передан файл с некорректным расширением, ожидался .sql файл!");
 
-        Path path = Path.of(pathToSqlFile);
+        Path path = Path.of(PATH_TO_SQL_FOLDER + pathToSqlFile);
 
         try {
             String sql = new String(Files.readAllBytes(path));

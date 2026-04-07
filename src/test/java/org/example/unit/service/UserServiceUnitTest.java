@@ -293,7 +293,7 @@ class UserServiceUnitTest {
     @Nested
     class FindAllUsersTests {
 
-        private final PageRequest pageRequest = new PageRequest(0, 10);
+        private final PageRequest pageRequest = PageRequest.of(0, 10);
         private final AuthContext adminContext = mock(AuthContext.class);
 
         @BeforeEach

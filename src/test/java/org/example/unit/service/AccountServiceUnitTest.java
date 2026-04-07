@@ -551,7 +551,7 @@ class AccountServiceUnitTest {
             final Long ACCOUNT_ID = 1L;
             final List<String> USER_ROLES = List.of("USER");
             final String USER_EMAIL = "mock@gmail.com";
-            final PageRequest PAGE_REQUEST = new PageRequest(0, 10);
+            final PageRequest PAGE_REQUEST = PageRequest.of(0, 10);
 
             AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
 
@@ -599,7 +599,7 @@ class AccountServiceUnitTest {
             final Long ACCOUNT_ID = 1L;
             final List<String> USER_ROLES = List.of("USER");
             final String USER_EMAIL = "mock@gmail.com";
-            final PageRequest PAGE_REQUEST = new PageRequest(0, 10);
+            final PageRequest PAGE_REQUEST = PageRequest.of(0, 10);
 
             AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
 
@@ -629,7 +629,7 @@ class AccountServiceUnitTest {
             final Long WRONG_ACCOUNT_ID = 999L;
             final List<String> USER_ROLES = List.of("USER");
             final String USER_EMAIL = "mock@gmail.com";
-            final PageRequest PAGE_REQUEST = new PageRequest(0, 10);
+            final PageRequest PAGE_REQUEST = PageRequest.of(0, 10);
             final String EXPECTED_ERROR_MESSAGE = "Счет не найден";
 
             AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);

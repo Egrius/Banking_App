@@ -16,7 +16,7 @@ public class UserDao extends BaseDaoImpl<User, Long> {
 
     public Optional<User> findByEmail(EntityManager em, String email) {
 
-        return em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
+        return em.createQuery("SELECT u FROM User u JOIN FETCH u.roles WHERE u.email = :email", User.class)
                 .setParameter("email", email)
                 .getResultStream()
                 .findFirst();

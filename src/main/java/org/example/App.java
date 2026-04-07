@@ -7,6 +7,10 @@ import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 
+// TODO: перенести AuthContext на слой выше сервисного
+// TODO: Перенести валидацию DTO на слой выше сервисного
+// TODO: Сделать связку AuthService с логин методом и сделать ThreadLocal айди сессии у клиента
+
 public class App 
 {
     public static void main( String[] args )

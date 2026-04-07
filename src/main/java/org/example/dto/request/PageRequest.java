@@ -4,7 +4,7 @@ public class PageRequest {
     private int pageNumber;
     private int pageSize;
 
-    public PageRequest(int pageNumber, int pageSize) {
+    private PageRequest(int pageNumber, int pageSize) {
         if (pageNumber < 0) {
             throw new IllegalArgumentException("pageNumber must be >= 0");
         }
@@ -21,5 +21,9 @@ public class PageRequest {
 
     public int getPageSize() {
         return pageSize;
+    }
+
+    public static PageRequest of(int pageNumber, int pageSize) {
+        return new PageRequest(pageNumber, pageSize);
     }
 }

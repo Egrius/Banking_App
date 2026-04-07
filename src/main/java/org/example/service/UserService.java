@@ -3,10 +3,12 @@ package org.example.service;
 import jakarta.persistence.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dao.RoleDao;
 import org.example.dao.UserDao;
 import org.example.dto.request.PageRequest;
 import org.example.dto.response.PageResponse;
 import org.example.dto.user.*;
+import org.example.entity.Role;
 import org.example.entity.User;
 import org.example.exception.security_exception.AccessDeniedException;
 import org.example.exception.user.UserAlreadyExistsException;
@@ -33,6 +35,7 @@ public class UserService {
 
     private final EntityManagerFactory emf;
     private final UserDao userDao;
+    private final RoleDao roleDao;
     private final UserReadMapper userReadMapper;
     private final UserUpdateMapper userUpdateMapper;
     /**
@@ -53,6 +56,7 @@ public class UserService {
      */
     public UserReadDto register(UserCreateDto createDto) {
 
+        // TODO: перенести на слой выше
         ValidatorUtil.validate(createDto);
 
         EntityManager em = emf.createEntityManager();
@@ -73,6 +77,11 @@ public class UserService {
                     .email(createDto.email())
                     .passwordHash(PasswordUtil.hash(createDto.rawPassword()))
                     .build();
+
+            Role userRole = roleDao.findByName(em, "USER")
+                    .orElseThrow(() -> new EntityNotFoundException("Ошибка при назначении роли USER для новго пользователя, роль не найдена в БД!"));
+
+            user.getRoles().add(userRole);
 
             userDao.save(em, user);
             tx.commit();
@@ -104,13 +113,15 @@ public class UserService {
      */
     public UserReadDto login(UserLoginDto loginDto) {
 
+        // TODO: перенести на слой выше
         ValidatorUtil.validate(loginDto);
 
         EntityManager em = emf.createEntityManager();
 
         try {
 
-            User foundUser = userDao.findByEmail(em, loginDto.email()).orElseThrow(() -> new EntityNotFoundException("Пользователь не найден"));
+            User foundUser = userDao.findByEmail(em, loginDto.email())
+                    .orElseThrow(() -> new EntityNotFoundException("Пользователь не найден"));
 
             if(!PasswordUtil.verify(loginDto.rawPassword(), foundUser.getPasswordHash())) {
                 throw new AccessDeniedException("Пароль неверен!");
@@ -165,7 +176,7 @@ public class UserService {
 
             PageResponse<User> pageResponse = userDao.findAllPageable(em, pageRequest);
 
-            return new PageResponse<UserReadDto>(
+            return new PageResponse<>(
                     pageResponse.getContent().stream().map(userReadMapper::map).toList(),
                     pageResponse.getPageNumber(),
                     pageResponse.getPageSize(),
