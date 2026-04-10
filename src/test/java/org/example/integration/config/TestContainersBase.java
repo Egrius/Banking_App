@@ -41,6 +41,8 @@ public class TestContainersBase {
 
             properties.setProperty("hibernate.connection.pool_size", "5");
 
+            properties.setProperty("hibernate.jdbc.lock.use_none_for_update", "false");
+
             configuration.setProperties(properties);
 
             configuration.addAnnotatedClass(org.example.entity.User.class);
@@ -51,6 +53,7 @@ public class TestContainersBase {
             configuration.addAnnotatedClass(org.example.entity.AuditLog.class);
             configuration.addAnnotatedClass(org.example.entity.AccountBalanceAudit.class);
             configuration.addAnnotatedClass(org.example.entity.Account.class);
+            configuration.addAnnotatedClass(org.example.entity.IdempotencyKey.class);
 
             sessionFactory = configuration.buildSessionFactory();
         }

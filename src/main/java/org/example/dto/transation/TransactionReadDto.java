@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record TransactionReadDto(
+        Long id,
         AccountReadDto fromAccount,
         AccountReadDto toAccount,
         BigDecimal amount,

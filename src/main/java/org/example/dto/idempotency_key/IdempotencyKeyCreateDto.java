@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record IdempotencyKeyCreateDto(
-        @NotBlank(message = "Ключ не может быть пустым")
+        @NotNull(message = "Ключ не может быть пустым")
         UUID key,
 
         @NotNull(message = "Транзакция должна быть передана для создания ключа в БД")

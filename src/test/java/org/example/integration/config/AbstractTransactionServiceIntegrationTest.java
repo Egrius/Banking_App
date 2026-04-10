@@ -1,9 +1,11 @@
 package org.example.integration.config;
 
+import jakarta.persistence.EntityManager;
 import org.example.dao.AccountDao;
 import org.example.dao.AuditDao;
 import org.example.dao.IdempotencyKeyDao;
 import org.example.dao.TransactionDao;
+import org.example.entity.Account;
 import org.example.mapper.*;
 import org.example.service.AuditService;
 import org.example.service.IdempotencyService;
@@ -11,8 +13,10 @@ import org.example.service.TransactionService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 
+import java.util.Optional;
+
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class AbstractTransactionIntegrationTest extends AbstractIntegrationTest {
+public class AbstractTransactionServiceIntegrationTest extends AbstractIntegrationTest {
 
     protected AccountDao accountDao;
     protected TransactionDao transactionDao;
@@ -57,4 +61,11 @@ public class AbstractTransactionIntegrationTest extends AbstractIntegrationTest 
     /*
     Здесь дальше хэлпер-методы
      */
+
+    protected Optional<Account> findAccountById(Long id) {
+        try(EntityManager em = sessionFactory.createEntityManager();) {
+            return Optional.of(em.find(Account.class, id));
+        }
+
+    }
 }

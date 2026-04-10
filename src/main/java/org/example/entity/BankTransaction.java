@@ -46,16 +46,16 @@ public class BankTransaction {
     @Column(name = "from_balance_before", nullable = false)
     private BigDecimal fromBalanceBefore;
 
-    @Column(name = "from_balance_after", nullable = false)
+    @Column(name = "from_balance_after")
     private BigDecimal fromBalanceAfter;
 
     @Column(name = "to_balance_before", nullable = false)
     private BigDecimal toBalanceBefore;
 
-    @Column(name = "to_balance_after", nullable = false)
+    @Column(name = "to_balance_after")
     private BigDecimal toBalanceAfter;
 
-    @Column(name="created_at", nullable = false)
+    @Column(name="created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "processed_at")

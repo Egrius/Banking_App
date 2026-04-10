@@ -114,12 +114,7 @@ public class TransactionService {
         registry.appendListeners(EventType.POST_UPDATE, auditInterceptor);
     }
 
-    public TransactionReadDto transfer(TransactionCreateDto transactionCreateDto, AuthContext authContext) {
-        //  Валидация входных данных
-        ValidatorUtil.validate(transactionCreateDto);
-
-        // Проверка прав
-        SecurityUtil.checkOwner(authContext, transactionCreateDto.fromAccountId());
+    public TransactionReadDto transfer(TransactionCreateDto transactionCreateDto) {
 
         // Проверка на идемпотентность (если повторно одно и то же, то чекнуть статус, если pending, то дать возможность повторить?)
 

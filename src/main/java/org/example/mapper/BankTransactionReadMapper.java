@@ -12,6 +12,7 @@ public class BankTransactionReadMapper implements BaseMapper<BankTransaction, Tr
     @Override
     public TransactionReadDto map(BankTransaction object) {
         return new TransactionReadDto(
+                object.getId(),
                 accountReadMapper.map(object.getFromAccount()),
                 accountReadMapper.map(object.getFromAccount()),
                 object.getAmount(),

@@ -6,12 +6,9 @@ import org.example.entity.enums.ActionType;
 import org.example.entity.enums.AuditStatus;
 import org.example.entity.enums.EntityType;
 import org.example.service.AuditService;
-import org.hibernate.Interceptor;
 import org.hibernate.event.spi.*;
-import org.hibernate.type.Type;
 
 import java.time.LocalDateTime;
-import java.util.Iterator;
 
 public class AuditLogTransactionInterceptor implements PostInsertEventListener, PostUpdateEventListener {
 
