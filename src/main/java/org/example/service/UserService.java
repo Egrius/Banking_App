@@ -159,7 +159,6 @@ public class UserService {
      * <b>Доступно только администраторам.</b>
      * </p>
      *
-     * @param authContext контекст аутентификации
      * @param pageRequest параметры пагинации (номер страницы, размер страницы)
      * @return страница с DTO пользователей
      * @throws AccessDeniedException если текущий пользователь не является администратором
@@ -196,24 +195,16 @@ public class UserService {
      *
      * @param userId идентификатор пользователя
      * @param updateDto DTO с новыми данными
-     * @param authContext контекст аутентификации
      * @return DTO с обновленными данными пользователя
      * @throws EntityNotFoundException если пользователь не найден
      * @throws AccessDeniedException если нет прав на обновление
      */
-    public UserReadDto updateUser(Long userId, UserUpdateDto updateDto, AuthContext authContext) {
-
-        SecurityUtil.checkAdminOrOwner(authContext, userId); // бросает unchecked если не прошла проверка
+    public UserReadDto updateUser(Long userId, UserUpdateDto updateDto) {
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
         try {
-
-            ValidatorUtil.validate(updateDto);
-
-            log.debug("Валидация пройдена для updateUser");
-
 
             tx.begin();
 
@@ -244,14 +235,11 @@ public class UserService {
      *
      * @param userId идентификатор пользователя
      * @param passwordChangeDto DTO со старым и новым паролями
-     * @param authContext контекст аутентификации
      * @throws EntityNotFoundException если пользователь не найден
      * @throws AccessDeniedException если старый пароль неверен (для не-админа)
      * @throws ConcurrentModificationException при оптимистической блокировке
      */
-    public void changePassword(Long userId, PasswordChangeDto passwordChangeDto, AuthContext authContext) {
-
-        SecurityUtil.checkAdminOrOwner(authContext, userId);
+    public void changePassword(Long userId, PasswordChangeDto passwordChangeDto) {
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -275,7 +263,7 @@ public class UserService {
                 } catch (OptimisticLockException e) {
                     log.error("Конфликт версий при обновлении пользователя {}", userId);
                     throw new ConcurrentModificationException(
-                            "Пользователь был изменен. Обновите данные и повторите попытку.");
+                            "Профиль пользователя был изменён другим потоком. Обновите данные и повторите попытку.");
                 }
             } else {
                 throw new AccessDeniedException("Передан неправильный пароль");
@@ -299,13 +287,10 @@ public class UserService {
      *
      * @param userId идентификатор пользователя
      * @param password пароль для подтверждения (обязателен для владельца)
-     * @param authContext контекст аутентификации
      * @throws EntityNotFoundException если пользователь не найден
      * @throws AccessDeniedException если пароль неверен (для не-админа)
      */
-    public void deleteUser(Long userId, String password, AuthContext authContext) {
-
-        SecurityUtil.checkAdminOrOwner(authContext, userId);
+    public void deleteUser(Long userId, String password) {
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -316,11 +301,9 @@ public class UserService {
             User userToDelete = userDao.findById(em, userId)
                     .orElseThrow(() -> new EntityNotFoundException("Не найден пользователь для удаления с id: " + userId));
 
-            if (!authContext.isAdmin()) {
-                if (!PasswordUtil.verify(password, userToDelete.getPasswordHash())) {
-                    log.warn("Попытка удаления пользователя {} с неверным паролем", userId);
-                    throw new AccessDeniedException("Неверный пароль");
-                }
+            if (!PasswordUtil.verify(password, userToDelete.getPasswordHash())) {
+                log.warn("Попытка удаления пользователя {} с неверным паролем", userId);
+                throw new AccessDeniedException("Неверный пароль");
             }
 
             userDao.delete(em, userToDelete);

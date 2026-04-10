@@ -39,11 +39,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AccountService {
 
+
+    private final EntityManagerFactory emf;
     private final UserDao userDao;
     private final AccountDao accountDao;
     private final AccountReadMapper accountReadMapper;
-    private final EntityManagerFactory emf;
-
     /**
      * <h3>Открытие нового банковского счета.</h3>
      * <p>
@@ -56,18 +56,12 @@ public class AccountService {
      * </ul>
      *
      * @param createDto    DTO с данными для открытия счета
-     * @param authContext  контекст аутентификации
      * @return DTO с информацией о созданном счете
      * @throws EntityNotFoundException если пользователь не найден
      * @throws AccountAlreadyExistsException если счет такого типа уже существует
      * @throws AccessDeniedException если недостаточно прав
      */
-    public AccountReadDto createAccount(AccountCreateDto createDto, AuthContext authContext) {
-
-        SecurityUtil.checkAuthenticated(authContext);
-        SecurityUtil.checkAdminOrOwner(authContext, createDto.userId());
-
-        ValidatorUtil.validate(createDto);
+    public AccountReadDto createAccount(AccountCreateDto createDto) {
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -112,16 +106,14 @@ public class AccountService {
      * </p>
      *
      * @param accountId    идентификатор счета
-     * @param authContext  контекст аутентификации
      * @return DTO с информацией о счете
      * @throws EntityNotFoundException если счет не найден
      * @throws AccessDeniedException если недостаточно прав
      */
-    public AccountReadDto getAccount(Long accountId, AuthContext authContext) {
+    public AccountReadDto getAccount(Long accountId) {
 
-        SecurityUtil.checkAuthenticated(authContext);
 
-        log.debug("Запрос счета accountId={}, userId={}", accountId, authContext.getUserId());
+        log.debug("Запрос счета accountId={}", accountId);
 
         EntityManager em = emf.createEntityManager();
 
@@ -129,8 +121,6 @@ public class AccountService {
 
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
-
-            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId()); // N+1 не должно быть т.к прокси
 
             return accountReadMapper.map(account);
 
@@ -148,14 +138,10 @@ public class AccountService {
      * </p>
      *
      * @param userId       идентификатор пользователя
-     * @param authContext  контекст аутентификации
      * @return список кратких DTO счетов пользователя
      * @throws AccessDeniedException если недостаточно прав
      */
-    public List<AccountSummaryDto> getUserAccounts(Long userId, AuthContext authContext){
-
-        SecurityUtil.checkAuthenticated(authContext);
-        SecurityUtil.checkAdminOrOwner(authContext, userId);
+    public List<AccountSummaryDto> getUserAccounts(Long userId){
 
         EntityManager em = emf.createEntityManager();
 
@@ -188,15 +174,13 @@ public class AccountService {
      * </p>
      *
      * @param accountId    идентификатор счета
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если счет не найден
      * @throws IllegalStateException если счет уже закрыт или заблокирован
      * @throws AccessDeniedException если недостаточно прав
      */
-    public void closeAccount(Long accountId, AuthContext authContext) {
-        log.debug("Попытка закрытия счета accountId={}, userId={}", accountId, authContext.getUserId());
+    public void closeAccount(Long accountId) {
+        log.debug("Попытка закрытия счета accountId={}", accountId);
 
-        SecurityUtil.checkAuthenticated(authContext);
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -207,8 +191,6 @@ public class AccountService {
 
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
-
-            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId()); // N+1 не должно быть т.к прокси
 
             if (account.getStatus() == Status.CLOSED) {
                 throw new IllegalStateException("Счет уже закрыт");
@@ -223,14 +205,13 @@ public class AccountService {
 
             accountDao.save(em, account);
 
-            log.info("Счет {} закрыт пользователем {}", account.getAccountNumber(), authContext.getUserId());
+            log.info("Счет {} закрыт", account.getAccountNumber());
 
             tx.commit();
 
         } catch(OptimisticLockException e) {
             tx.rollback();
-            log.warn("Конфликт при закрытии счета accountId={}, userId={}",
-                     accountId, authContext.getUserId());
+            log.warn("Конфликт при закрытии счета accountId={}", accountId);
             throw e;
 
         } catch (Exception e) {
@@ -252,16 +233,14 @@ public class AccountService {
      *
      * @param accountId    идентификатор счета
      * @param reason       причина блокировки
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если счет не найден
      * @throws IllegalStateException если счет уже заблокирован или закрыт
      * @throws AccessDeniedException если недостаточно прав
      */
 
     // TODO в логи добавить причину плюс событие
-    public void blockAccount(Long accountId, String reason, AuthContext authContext){
+    public void blockAccount(Long accountId, String reason){
 
-        SecurityUtil.checkAuthenticated(authContext);
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -272,7 +251,7 @@ public class AccountService {
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
 
-            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
+            System.out.println("--- ВНУТРИ СЕРВИСА СТАТУС СЧЕТА: " +  account.getStatus());
 
             if (account.getStatus() == Status.BLOCKED) {
                 throw new IllegalStateException("Счет уже заблокирован");
@@ -312,14 +291,12 @@ public class AccountService {
      *
      * @param accountId    идентификатор счета
      * @param pageRequest  параметры пагинации
-     * @param authContext  контекст аутентификации
      * @return страница с DTO записей аудита баланса
      * @throws EntityNotFoundException если счет не найден
      * @throws AccessDeniedException если недостаточно прав
      */
-    public PageResponse<BalanceAuditReadDto> getBalanceAudit(Long accountId, PageRequest pageRequest, AuthContext authContext) {
+    public PageResponse<BalanceAuditReadDto> getBalanceAudit(Long accountId, PageRequest pageRequest) {
 
-        SecurityUtil.checkAuthenticated(authContext);
 
         EntityManager em = emf.createEntityManager();
 
@@ -327,8 +304,6 @@ public class AccountService {
 
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет не найден"));
-
-            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
 
             // Подсчет сколько всего, чтобы создать респонс
             Long auditsTotal = accountDao.countAudits(em, accountId);
@@ -355,14 +330,11 @@ public class AccountService {
      * </p>
      *
      * @param accountId    идентификатор счета
-     * @param authContext  контекст аутентификации
      * @return текущий баланс
      * @throws EntityNotFoundException если счет не найден
      * @throws AccessDeniedException если недостаточно прав
      */
-    public BigDecimal getBalance(Long accountId, AuthContext authContext) {
-
-        SecurityUtil.checkAuthenticated(authContext);
+    public BigDecimal getBalance(Long accountId) {
 
         EntityManager em = emf.createEntityManager();
 
@@ -370,8 +342,6 @@ public class AccountService {
 
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
-
-            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
 
            return account.getBalance();
 

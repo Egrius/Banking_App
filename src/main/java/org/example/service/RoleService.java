@@ -35,10 +35,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RoleService {
 
+    private final EntityManagerFactory entityManagerFactory;
     private final RoleDao roleDao;
     private final UserDao userDao;
     private final UserReadMapper userReadMapper;
-    private final EntityManagerFactory entityManagerFactory;
 
     /**
      * <h3>Создание новой роли.</h3>
@@ -54,12 +54,10 @@ public class RoleService {
      * </p>
      *
      * @param roleName     имя новой роли
-     * @param authContext  контекст аутентификации
      * @throws IllegalArgumentException если имя роли не соответствует требованиям
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public void createRole(String roleName, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public void createRole(String roleName) {
 
         if (roleName == null || roleName.isBlank()) {
             throw new IllegalArgumentException("Нельзя создать роль без имени");
@@ -82,7 +80,7 @@ public class RoleService {
             roleDao.save(em, role);
 
             tx.commit();
-            log.info("Создана новая роль {} администратором {}", roleName.toUpperCase(), authContext.getUserId());
+            log.info("Создана новая роль {}", roleName.toUpperCase());
 
         } catch (Exception e) {
             if (tx.isActive()) tx.rollback();
@@ -99,13 +97,11 @@ public class RoleService {
      * </p>
      *
      * @param roleId       идентификатор роли
-     * @param authContext  контекст аутентификации
      * @return DTO с информацией о роли
      * @throws EntityNotFoundException если роль не найдена
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public RoleReadDto findById(Long roleId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public RoleReadDto findById(Long roleId) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
 
@@ -126,14 +122,12 @@ public class RoleService {
      * </p>
      *
      * @param name         имя роли
-     * @param authContext  контекст аутентификации
      * @return DTO с информацией о роли
      * @throws IllegalArgumentException если имя роли пустое
      * @throws EntityNotFoundException если роль не найдена
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public RoleReadDto findByName(String name, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public RoleReadDto findByName(String name) {
 
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Имя роли не может быть пустым");
@@ -156,12 +150,10 @@ public class RoleService {
      * <b>Доступно только администратору.</b>
      * </p>
      *
-     * @param authContext контекст аутентификации
      * @return список всех ролей в системе
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public List<RoleReadDto> findAll(AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public List<RoleReadDto> findAll() {
 
         EntityManager em = entityManagerFactory.createEntityManager();
 
@@ -183,14 +175,12 @@ public class RoleService {
      *
      * @param roleId       идентификатор роли
      * @param newName      новое имя роли
-     * @param authContext  контекст аутентификации
      * @return DTO с обновленной информацией о роли
      * @throws EntityNotFoundException если роль не найдена
      * @throws IllegalArgumentException если новое имя не соответствует требованиям или уже существует
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public RoleReadDto updateRole(Long roleId, String newName, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public RoleReadDto updateRole(Long roleId, String newName) {
 
         if (newName == null || newName.isBlank()) {
             throw new IllegalArgumentException("Имя роли не может быть пустым");
@@ -219,7 +209,7 @@ public class RoleService {
             roleDao.update(em, role);
 
             tx.commit();
-            log.info("Роль {} обновлена администратором {} на {}", roleId, authContext.getUserId(), normalizedName);
+            log.info("Роль '{}' обновлена на '{}'", roleId, normalizedName);
             return mapToReadDto(role);
 
         } catch (Exception e) {
@@ -238,13 +228,11 @@ public class RoleService {
      * </p>
      *
      * @param roleId       идентификатор роли
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если роль не найдена
      * @throws IllegalStateException если роль используется
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public void deleteRole(Long roleId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public void deleteRole(Long roleId) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -262,7 +250,7 @@ public class RoleService {
             roleDao.delete(em, role);
             tx.commit();
 
-            log.info("Роль {} удалена администратором {}", role.getName(), authContext.getUserId());
+            log.info("Роль {} удалена администратором", role.getName());
 
         } catch (Exception e) {
             if (tx.isActive()) tx.rollback();
@@ -280,12 +268,10 @@ public class RoleService {
      *
      * @param userId       идентификатор пользователя
      * @param roleId       идентификатор роли
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если пользователь или роль не найдены
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public void assignRoleToUser(Long userId, Long roleId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public void assignRoleToUser(Long userId, Long roleId) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -302,8 +288,8 @@ public class RoleService {
             boolean added = user.getRoles().add(role);
             if (added) {
                 userDao.update(em, user);
-                log.info("Роль {} назначена пользователю {} администратором {}",
-                        role.getName(), userId, authContext.getUserId());
+                log.info("Роль {} назначена пользователю {}",
+                        role.getName(), userId);
             } else {
                 log.info("Роль {} уже назначена пользователю {}", role.getName(), userId);
             }
@@ -326,12 +312,10 @@ public class RoleService {
      *
      * @param userId       идентификатор пользователя
      * @param roleIds      набор идентификаторов ролей
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если пользователь или какая-либо роль не найдены
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public void assignRolesToUser(Long userId, Set<Long> roleIds, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public void assignRolesToUser(Long userId, Set<Long> roleIds) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -351,9 +335,9 @@ public class RoleService {
             if (!roles.isEmpty()) {
                 user.getRoles().addAll(roles);
                 userDao.update(em, user);
-                log.info("Роли {} назначены пользователю {} администратором {}",
+                log.info("Роли {} назначены пользователю {}",
                         roles.stream().map(Role::getName).collect(Collectors.toSet()),
-                        userId, authContext.getUserId());
+                        userId);
             }
 
             tx.commit();
@@ -374,12 +358,10 @@ public class RoleService {
      *
      * @param userId       идентификатор пользователя
      * @param roleId       идентификатор роли
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если пользователь или роль не найдены
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public void removeRoleFromUser(Long userId, Long roleId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public void removeRoleFromUser(Long userId, Long roleId) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -396,8 +378,8 @@ public class RoleService {
             boolean removed = user.getRoles().remove(role);
             if (removed) {
                 userDao.update(em, user);
-                log.info("Роль {} удалена у пользователя {} администратором {}",
-                        role.getName(), userId, authContext.getUserId());
+                log.info("Роль {} удалена у пользователя {}",
+                        role.getName(), userId);
             }
 
             tx.commit();
@@ -417,12 +399,10 @@ public class RoleService {
      * </p>
      *
      * @param userId       идентификатор пользователя
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если пользователь не найден
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public void removeAllRolesFromUser(Long userId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public void removeAllRolesFromUser(Long userId) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -436,8 +416,8 @@ public class RoleService {
             if (!user.getRoles().isEmpty()) {
                 user.getRoles().clear();
                 userDao.update(em, user);
-                log.info("Все роли удалены у пользователя {} администратором {}",
-                        userId, authContext.getUserId());
+                log.info("Все роли удалены у пользователя {}",
+                        userId);
             }
 
             tx.commit();
@@ -457,13 +437,11 @@ public class RoleService {
      * </p>
      *
      * @param roleId       идентификатор роли
-     * @param authContext  контекст аутентификации
      * @return список DTO пользователей, имеющих указанную роль
      * @throws EntityNotFoundException если роль не найдена
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public List<UserReadDto> getUsersWithRole(Long roleId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public List<UserReadDto> getUsersWithRole(Long roleId) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
 
@@ -486,13 +464,11 @@ public class RoleService {
      * </p>
      *
      * @param userId       идентификатор пользователя
-     * @param authContext  контекст аутентификации
      * @return набор DTO ролей пользователя
      * @throws EntityNotFoundException если пользователь не найден
      * @throws org.example.exception.security_exception.AccessDeniedException если текущий пользователь не администратор
      */
-    public Set<RoleReadDto> getUserRoles(Long userId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public Set<RoleReadDto> getUserRoles(Long userId) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
 
@@ -508,8 +484,7 @@ public class RoleService {
         }
     }
 
-    public boolean hasRole(Long userId, String roleName, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public boolean hasRole(Long userId, String roleName) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
 
@@ -524,8 +499,7 @@ public class RoleService {
         }
     }
 
-    public boolean hasAnyRole(Long userId, Set<String> roleNames, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public boolean hasAnyRole(Long userId, Set<String> roleNames) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
 
@@ -545,8 +519,7 @@ public class RoleService {
         }
     }
 
-    public boolean hasAllRoles(Long userId, Set<String> roleNames, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public boolean hasAllRoles(Long userId, Set<String> roleNames) {
 
         EntityManager em = entityManagerFactory.createEntityManager();
 

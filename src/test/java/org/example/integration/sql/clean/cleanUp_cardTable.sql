@@ -1,0 +1,2 @@
+DELETE FROM cards;
+ALTER SEQUENCE cards_id_seq RESTART WITH 1;

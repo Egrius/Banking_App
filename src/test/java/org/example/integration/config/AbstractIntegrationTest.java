@@ -99,6 +99,5 @@ public abstract class AbstractIntegrationTest {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
     }
 }

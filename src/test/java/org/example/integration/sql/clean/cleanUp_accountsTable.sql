@@ -1,0 +1,2 @@
+DELETE FROM accounts;
+ALTER SEQUENCE accounts_id_seq RESTART WITH 1;

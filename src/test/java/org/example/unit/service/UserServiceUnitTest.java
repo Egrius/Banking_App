@@ -79,7 +79,7 @@ class UserServiceUnitTest {
         @Test
         void registerUser_shouldRegisterIfDtoCorrect() {
             UserCreateDto correctDto = new UserCreateDto("Test", "Test", "12345", "test@gmail.com");
-            UserReadDto dtoToReturn = new UserReadDto("Test", "Test", "test@gmail.com", LocalDateTime.now(),
+            UserReadDto dtoToReturn = new UserReadDto(1L, "Test", "Test", "test@gmail.com", LocalDateTime.now(),
                     List.of(new RoleReadDto(USER_ROLE_NAME)));
 
             when(emf.createEntityManager()).thenReturn(mockEm);
@@ -182,6 +182,7 @@ class UserServiceUnitTest {
                     .build();
 
             UserReadDto mockUserReadDto = new UserReadDto(
+                    1L,
                     mockUser.getFirstName(),
                     mockUser.getLastName(),
                     mockUser.getEmail(),
@@ -255,7 +256,7 @@ class UserServiceUnitTest {
         void findById_shouldReturnUser_whenIdFound() {
             final Long ID_TO_FIND = 5L;
             User mockUser = Mockito.mock(User.class);
-            UserReadDto dtoToReturn = new UserReadDto("Test", "Test", "test@gmail.com", LocalDateTime.now(), List.of());
+            UserReadDto dtoToReturn = new UserReadDto(1L,"Test", "Test", "test@gmail.com", LocalDateTime.now(), List.of());
 
             when(userDao.findById(mockEm, ID_TO_FIND)).thenReturn(Optional.of(mockUser));
             when(userReadMapper.map(mockUser)).thenReturn(dtoToReturn);
@@ -305,8 +306,8 @@ class UserServiceUnitTest {
         void findAll_shouldReturnPageResponse_whenUsersExist() {
             List<User> mockUsers = List.of(Mockito.mock(User.class), Mockito.mock(User.class));
             List<UserReadDto> expectedDtos = List.of(
-                    new UserReadDto("John", "Doe", "john@example.com", LocalDateTime.now(), List.of()),
-                    new UserReadDto("Jane", "Smith", "jane@example.com", LocalDateTime.now(), List.of())
+                    new UserReadDto(1L,"John", "Doe", "john@example.com", LocalDateTime.now(), List.of()),
+                    new UserReadDto(2L, "Jane", "Smith", "jane@example.com", LocalDateTime.now(), List.of())
             );
 
             PageResponse<User> pageResponse = new PageResponse<>(mockUsers, 0, 10, 2L);
@@ -374,7 +375,7 @@ class UserServiceUnitTest {
         private final UserUpdateDto updateDto = new UserUpdateDto("new_First", "new_Last");
         private final User mockUser = Mockito.mock(User.class);
         private final User updatedUserMock = Mockito.mock(User.class);
-        private final UserReadDto expectedDto = new UserReadDto("new_First", "new_Last", "oldEmail", LocalDateTime.now(), List.of());
+        private final UserReadDto expectedDto = new UserReadDto(1L,"new_First", "new_Last", "oldEmail", LocalDateTime.now(), List.of());
 
         @BeforeEach
         void setUp() {
@@ -398,7 +399,7 @@ class UserServiceUnitTest {
                 validatorMock.when(() -> ValidatorUtil.validate(updateDto))
                         .thenAnswer(invocation -> null);
 
-                UserReadDto actualResult = userService.updateUser(USER_ID, updateDto, authContext);
+                UserReadDto actualResult = userService.updateUser(USER_ID, updateDto);
 
                 assertNotNull(actualResult);
                 assertEquals(expectedDto.firstName(), actualResult.firstName());
@@ -421,7 +422,7 @@ class UserServiceUnitTest {
 
                 when(mockTx.isActive()).thenReturn(true);
 
-                assertThatThrownBy(() -> userService.updateUser(USER_ID, updateDto, authContext))
+                assertThatThrownBy(() -> userService.updateUser(USER_ID, updateDto))
                         .isInstanceOf(EntityNotFoundException.class)
                         .hasMessageContaining("Не найден пользователь");
 
@@ -437,7 +438,7 @@ class UserServiceUnitTest {
                 validatorMock.when(() -> ValidatorUtil.validate(updateDto))
                         .thenThrow(new CustomValidationException(new ValidationErrorResponse(List.of())));
 
-                assertThatThrownBy(() -> userService.updateUser(USER_ID, updateDto, authContext))
+                assertThatThrownBy(() -> userService.updateUser(USER_ID, updateDto))
                         .isInstanceOf(CustomValidationException.class);
             }
 
@@ -482,7 +483,7 @@ class UserServiceUnitTest {
                 passwordUtilMock.when(() -> PasswordUtil.hash("newPass"))
                         .thenReturn("hashedNew");
 
-                userService.changePassword(USER_ID, passwordChangeDto, authContext);
+                userService.changePassword(USER_ID, passwordChangeDto);
 
                 verify(mockTx).begin();
                 verify(mockTx).commit();
@@ -507,7 +508,7 @@ class UserServiceUnitTest {
 
                 when(mockTx.isActive()).thenReturn(true);
 
-                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto, authContext))
+                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto))
                         .isInstanceOf(AccessDeniedException.class)
                         .hasMessage("Передан неправильный пароль");
 
@@ -529,7 +530,7 @@ class UserServiceUnitTest {
 
                 when(mockTx.isActive()).thenReturn(true);
 
-                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto, authContext))
+                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto))
                         .isInstanceOf(EntityNotFoundException.class)
                         .hasMessage("Пользователь не найден");
 
@@ -559,7 +560,7 @@ class UserServiceUnitTest {
 
                 doThrow(new OptimisticLockException()).when(userDao).update(mockEm, user);
 
-                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto, authContext))
+                assertThatThrownBy(() -> userService.changePassword(USER_ID, passwordChangeDto))
                         .isInstanceOf(ConcurrentModificationException.class)
                         .hasMessage("Пользователь был изменен. Обновите данные и повторите попытку.");
 
@@ -600,7 +601,7 @@ class UserServiceUnitTest {
                 passwordUtilMock.when(() -> PasswordUtil.verify(CORRECT_PASSWORD, "hashedPass"))
                         .thenReturn(true);
 
-                userService.deleteUser(USER_ID, CORRECT_PASSWORD, authContext);
+                userService.deleteUser(USER_ID, CORRECT_PASSWORD);
 
                 verify(mockTx).begin();
                 verify(mockTx).commit();
@@ -614,7 +615,7 @@ class UserServiceUnitTest {
             when(authContext.isAdmin()).thenReturn(true);
             when(userDao.findById(mockEm, USER_ID)).thenReturn(Optional.of(user));
 
-            userService.deleteUser(USER_ID, "", authContext);
+            userService.deleteUser(USER_ID, "");
 
             verify(mockTx).begin();
             verify(mockTx).commit();
@@ -632,7 +633,7 @@ class UserServiceUnitTest {
 
                 when(mockTx.isActive()).thenReturn(true);
 
-                assertThatThrownBy(() -> userService.deleteUser(USER_ID, CORRECT_PASSWORD, authContext))
+                assertThatThrownBy(() -> userService.deleteUser(USER_ID, CORRECT_PASSWORD))
                         .isInstanceOf(AccessDeniedException.class)
                         .hasMessage("Неверный пароль");
 
@@ -650,7 +651,7 @@ class UserServiceUnitTest {
 
             when(mockTx.isActive()).thenReturn(true);
 
-            assertThatThrownBy(() -> userService.deleteUser(USER_ID, CORRECT_PASSWORD, authContext))
+            assertThatThrownBy(() -> userService.deleteUser(USER_ID, CORRECT_PASSWORD))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("Не найден пользователь");
 

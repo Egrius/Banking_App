@@ -26,7 +26,7 @@ public class AccountDao extends BaseDaoImpl<Account, Long> {
     public boolean existsByUserIdAndType(EntityManager em,
                                          Long userId, AccountType accountType) {
             return !em.createQuery("SELECT 1 FROM Account a JOIN a.user u WHERE u.id = :userId AND a.accountType = :accountType")
-                    .setParameter("accountType", accountType.getAbbreviation().toUpperCase())
+                    .setParameter("accountType", accountType)
                     .setParameter("userId", userId)
                     .setMaxResults(1)
                     .getResultList()

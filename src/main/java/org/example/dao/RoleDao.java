@@ -46,9 +46,12 @@ public class RoleDao extends BaseDaoImpl<Role, Long> {
 
     public boolean userWithThisRoleExist(EntityManager em, Long roleId) {
         try {
-            em.createQuery("SELECT 1 FROM User u JOIN u.roles r WHERE r.id := roleId")
+            Role role = em.createQuery("SELECT r FROM User u INNER JOIN u.roles r WHERE r.id = : roleId", Role.class)
                     .setParameter("roleId", roleId)
+                    .setMaxResults(1)
                     .getSingleResult();
+
+            System.out.println("_____ РОЛЬ " + role.getName());
 
             return true;
         } catch (NoResultException e) {

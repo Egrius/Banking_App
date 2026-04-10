@@ -14,6 +14,7 @@ public class UserReadMapper implements BaseMapper<User, UserReadDto> {
     @Override
     public UserReadDto map(User object) {
         return new UserReadDto(
+                object.getId(),
                 object.getFirstName(),
                 object.getLastName(),
                 object.getEmail(),

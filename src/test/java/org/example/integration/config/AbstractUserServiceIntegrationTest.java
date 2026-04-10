@@ -39,7 +39,7 @@ public abstract class AbstractUserServiceIntegrationTest extends AbstractIntegra
     Хелпер-методы
      */
 
-    public static Long createUserForDB(EntityManager em, String firstName, String lastName, String email, String passwordHash) {
+    public static User createUserForDB(EntityManager em, String firstName, String lastName, String email, String passwordHash) {
         User user = User.builder()
                 .firstName(firstName)
                 .lastName(lastName)
@@ -54,6 +54,6 @@ public abstract class AbstractUserServiceIntegrationTest extends AbstractIntegra
 
         em.persist(user);
 
-        return user.getId();
+        return user;
     }
 }

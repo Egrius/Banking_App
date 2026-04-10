@@ -21,7 +21,8 @@ public class CardDao extends BaseDaoImpl<Card, Long> {
 
     public List<Card> findByUserId(EntityManager em, Long userId) {
         return em.createQuery("SELECT c FROM Card c " +
-                                    "LEFT JOIN User u" +
+                                    "INNER JOIN FETCH c.user u " +
+                                    "INNER JOIN FETCH c.account a " +
                                     "WHERE u.id = :userId", Card.class)
                 .setParameter("userId", userId)
                 .getResultList();
@@ -30,7 +31,7 @@ public class CardDao extends BaseDaoImpl<Card, Long> {
 
     public List<Card> findByAccountId(EntityManager em, Long accountId) {
         return em.createQuery("SELECT c FROM Card c " +
-                        "LEFT JOIN Account a" +
+                        "LEFT JOIN c.account a " +
                         "WHERE a.id = :accountId", Card.class)
                 .setParameter("accountId", accountId)
                 .getResultList();

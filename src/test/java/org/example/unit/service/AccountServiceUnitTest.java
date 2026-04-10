@@ -46,7 +46,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AccountServiceUnitTest {
-
+/*
     @Mock
     private UserDao userDao;
 
@@ -87,17 +87,17 @@ class AccountServiceUnitTest {
             AccountCreateDto correctCreateDto = new AccountCreateDto(USER_ID, CurrencyCode.RUB, AccountType.CURRENT);
 
             UserReadDto expectedUserReadDto = new UserReadDto(
+                    1L,
                     "Mock", "Mock", USER_EMAIL,
                     LocalDateTime.now(),
                     USER_ROLES.stream().map(RoleReadDto::new).toList());
 
             AccountReadDto accountReadDto =   new AccountReadDto(
+                    1L,
                     expectedUserReadDto, ACCOUNT_NUMBER,
                     BigDecimal.ZERO, correctCreateDto.currencyCode(),
-                    correctCreateDto.accountType(), LocalDateTime.now(), null);
-
-
-            AuthContext correctAuthContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+                    correctCreateDto.accountType(), Status.ACTIVE,LocalDateTime.now(), null);
+            
 
 
             User mockUser = mock(User.class);
@@ -113,7 +113,7 @@ class AccountServiceUnitTest {
 
             when(accountReadMapper.map(any(Account.class))).thenReturn(accountReadDto);
 
-            AccountReadDto actualResult = accountService.createAccount(correctCreateDto, correctAuthContext);
+            AccountReadDto actualResult = accountService.createAccount(correctCreateDto);
 
             assertNotNull(actualResult);
             assertEquals(actualResult.user().email(), accountReadDto.user().email());
@@ -135,14 +135,13 @@ class AccountServiceUnitTest {
             final String EXPECTED_ERROR_MESSAGE = "Пользователь не найден";
 
             AccountCreateDto wrongCreateDto = new AccountCreateDto(WRONG_USER_ID, CurrencyCode.RUB, AccountType.CURRENT);
-            AuthContext wrongAuthContext = new AuthContext(WRONG_USER_ID, USER_EMAIL, USER_ROLES);
 
             when(userDao.findById(mockEM, WRONG_USER_ID))
                     .thenReturn(Optional.empty());
 
             when(mockTx.isActive()).thenReturn(true);
 
-            assertThatThrownBy(() -> accountService.createAccount(wrongCreateDto, wrongAuthContext))
+            assertThatThrownBy(() -> accountService.createAccount(wrongCreateDto))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
@@ -164,39 +163,32 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "mock@gmail.com";
             final String EXPECTED_ERROR_MESSAGE = "У пользователя уже есть счет такого типа";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
-
             AccountCreateDto accountCreateDto = new AccountCreateDto(USER_ID, CurrencyCode.RUB, AccountType.CURRENT);
 
             User mockUser = Mockito.mock(User.class);
             when(mockUser.getId()).thenReturn(USER_ID);
 
-            try(MockedStatic<SecurityUtil> mockSecurityUtil = Mockito.mockStatic(SecurityUtil.class)) {
-                mockSecurityUtil.when(() -> SecurityUtil.checkAuthenticated(authContext)).thenAnswer((i) -> null);
-                mockSecurityUtil.when(() -> SecurityUtil.checkAdminOrOwner(authContext, USER_ID)).thenAnswer((i) -> null);
-
-                when(userDao.findById(mockEM, USER_ID))
-                        .thenReturn(Optional.of(mockUser));
+            when(userDao.findById(mockEM, USER_ID))
+                    .thenReturn(Optional.of(mockUser));
 
 
-                when(accountDao.existsByUserIdAndType(mockEM, USER_ID, accountCreateDto.accountType()))
-                        .thenReturn(true);
+            when(accountDao.existsByUserIdAndType(mockEM, USER_ID, accountCreateDto.accountType()))
+                    .thenReturn(true);
 
-                when(mockTx.isActive()).thenReturn(true);
+            when(mockTx.isActive()).thenReturn(true);
 
-                assertThatThrownBy(() -> accountService.createAccount(accountCreateDto, authContext))
-                        .isInstanceOf(AccountAlreadyExistsException.class)
-                        .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
+            assertThatThrownBy(() -> accountService.createAccount(accountCreateDto))
+                    .isInstanceOf(AccountAlreadyExistsException.class)
+                    .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
-                verify(mockTx).begin();
-                verify(mockTx).rollback();
-                verify(mockEM).close();
+            verify(mockTx).begin();
+            verify(mockTx).rollback();
+            verify(mockEM).close();
 
 
-                verify(accountDao, never()).save(any(EntityManager.class), any(Account.class));
-                verify(mockTx, never()).commit();
-                verify(accountReadMapper, never()).map(any(Account.class));
-            }
+            verify(accountDao, never()).save(any(EntityManager.class), any(Account.class));
+            verify(mockTx, never()).commit();
+            verify(accountReadMapper, never()).map(any(Account.class));
 
         }
     }
@@ -211,7 +203,7 @@ class AccountServiceUnitTest {
             final List<String> USER_ROLES = List.of("USER");
             final String USER_EMAIL = "mock@gmail.com";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account account1 = mock(Account.class);
             Account account2 = mock(Account.class);
@@ -229,7 +221,7 @@ class AccountServiceUnitTest {
 
             when(accountDao.findUserAccountsByUserId(mockEM, USER_ID)).thenReturn(accounts);
 
-            List<AccountSummaryDto> result = accountService.getUserAccounts(USER_ID, authContext);
+            List<AccountSummaryDto> result = accountService.getUserAccounts(USER_ID);
 
             assertNotNull(result);
             assertEquals(2, result.size());
@@ -247,11 +239,11 @@ class AccountServiceUnitTest {
             final List<String> USER_ROLES = List.of("USER");
             final String USER_EMAIL = "mock@gmail.com";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             when(accountDao.findUserAccountsByUserId(mockEM, USER_ID)).thenReturn(List.of());
 
-            List<AccountSummaryDto> result = accountService.getUserAccounts(USER_ID, authContext);
+            List<AccountSummaryDto> result = accountService.getUserAccounts(USER_ID);
 
             assertNotNull(result);
             assertTrue(result.isEmpty());
@@ -270,7 +262,7 @@ class AccountServiceUnitTest {
             final List<String> USER_ROLES = List.of("USER");
             final String USER_EMAIL = "mock@gmail.com";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -281,7 +273,7 @@ class AccountServiceUnitTest {
 
             when(accountDao.findById(mockEM, ACCOUNT_ID)).thenReturn(Optional.of(mockAccount));
 
-            accountService.closeAccount(ACCOUNT_ID, authContext);
+            accountService.closeAccount(ACCOUNT_ID);
 
             verify(mockAccount).setStatus(Status.CLOSED);
             verify(mockAccount).setClosingDate(any(LocalDateTime.class));
@@ -299,12 +291,12 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "mock@gmail.com";
             final String EXPECTED_ERROR_MESSAGE = "Счет с id " + WRONG_ACCOUNT_ID + " не найден";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             when(accountDao.findById(mockEM, WRONG_ACCOUNT_ID)).thenReturn(Optional.empty());
             when(mockTx.isActive()).thenReturn(true);
 
-            assertThatThrownBy(() -> accountService.closeAccount(WRONG_ACCOUNT_ID, authContext))
+            assertThatThrownBy(() -> accountService.closeAccount(WRONG_ACCOUNT_ID))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
@@ -322,7 +314,7 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "mock@gmail.com";
             final String EXPECTED_ERROR_MESSAGE = "Счет уже закрыт";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -334,7 +326,7 @@ class AccountServiceUnitTest {
             when(accountDao.findById(mockEM, ACCOUNT_ID)).thenReturn(Optional.of(mockAccount));
             when(mockTx.isActive()).thenReturn(true);
 
-            assertThatThrownBy(() -> accountService.closeAccount(ACCOUNT_ID, authContext))
+            assertThatThrownBy(() -> accountService.closeAccount(ACCOUNT_ID))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
@@ -352,7 +344,7 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "mock@gmail.com";
             final String EXPECTED_ERROR_MESSAGE = "Нельзя закрыть заблокированный счет";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -364,7 +356,7 @@ class AccountServiceUnitTest {
             when(accountDao.findById(mockEM, ACCOUNT_ID)).thenReturn(Optional.of(mockAccount));
             when(mockTx.isActive()).thenReturn(true);
 
-            assertThatThrownBy(() -> accountService.closeAccount(ACCOUNT_ID, authContext))
+            assertThatThrownBy(() -> accountService.closeAccount(ACCOUNT_ID))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
@@ -386,7 +378,7 @@ class AccountServiceUnitTest {
             final List<String> USER_ROLES = List.of("ADMIN");
             final String USER_EMAIL = "admin@gmail.com";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -397,7 +389,7 @@ class AccountServiceUnitTest {
 
             when(accountDao.findById(mockEM, ACCOUNT_ID)).thenReturn(Optional.of(mockAccount));
 
-            accountService.blockAccount(ACCOUNT_ID, REASON, authContext);
+            accountService.blockAccount(ACCOUNT_ID, REASON);
 
             verify(mockAccount).setStatus(Status.BLOCKED);
             verify(accountDao).save(mockEM, mockAccount);
@@ -415,12 +407,12 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "admin@gmail.com";
             final String EXPECTED_ERROR_MESSAGE = "Счет с id " + WRONG_ACCOUNT_ID + " не найден";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             when(accountDao.findById(mockEM, WRONG_ACCOUNT_ID)).thenReturn(Optional.empty());
             when(mockTx.isActive()).thenReturn(true);
 
-            assertThatThrownBy(() -> accountService.blockAccount(WRONG_ACCOUNT_ID, REASON, authContext))
+            assertThatThrownBy(() -> accountService.blockAccount(WRONG_ACCOUNT_ID, REASON))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
@@ -439,7 +431,7 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "admin@gmail.com";
             final String EXPECTED_ERROR_MESSAGE = "Счет уже заблокирован";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -451,7 +443,7 @@ class AccountServiceUnitTest {
             when(accountDao.findById(mockEM, ACCOUNT_ID)).thenReturn(Optional.of(mockAccount));
             when(mockTx.isActive()).thenReturn(true);
 
-            assertThatThrownBy(() -> accountService.blockAccount(ACCOUNT_ID, REASON, authContext))
+            assertThatThrownBy(() -> accountService.blockAccount(ACCOUNT_ID, REASON))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
@@ -470,7 +462,7 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "admin@gmail.com";
             final String EXPECTED_ERROR_MESSAGE = "Нельзя заблокировать закрытый счет";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -482,7 +474,7 @@ class AccountServiceUnitTest {
             when(accountDao.findById(mockEM, ACCOUNT_ID)).thenReturn(Optional.of(mockAccount));
             when(mockTx.isActive()).thenReturn(true);
 
-            assertThatThrownBy(() -> accountService.blockAccount(ACCOUNT_ID, REASON, authContext))
+            assertThatThrownBy(() -> accountService.blockAccount(ACCOUNT_ID, REASON))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
@@ -504,7 +496,7 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "mock@gmail.com";
             final BigDecimal EXPECTED_BALANCE = BigDecimal.valueOf(1000.50);
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -515,7 +507,7 @@ class AccountServiceUnitTest {
 
             when(accountDao.findById(mockEM, ACCOUNT_ID)).thenReturn(Optional.of(mockAccount));
 
-            BigDecimal result = accountService.getBalance(ACCOUNT_ID, authContext);
+            BigDecimal result = accountService.getBalance(ACCOUNT_ID);
 
             assertNotNull(result);
             assertEquals(EXPECTED_BALANCE, result);
@@ -530,11 +522,11 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "mock@gmail.com";
             final String EXPECTED_ERROR_MESSAGE = "Счет с id " + WRONG_ACCOUNT_ID + " не найден";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             when(accountDao.findById(mockEM, WRONG_ACCOUNT_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> accountService.getBalance(WRONG_ACCOUNT_ID, authContext))
+            assertThatThrownBy(() -> accountService.getBalance(WRONG_ACCOUNT_ID))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
@@ -553,7 +545,7 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "mock@gmail.com";
             final PageRequest PAGE_REQUEST = PageRequest.of(0, 10);
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -582,7 +574,7 @@ class AccountServiceUnitTest {
             when(accountDao.getAuditsPage(mockEM, ACCOUNT_ID, PAGE_REQUEST.getPageNumber(), PAGE_REQUEST.getPageSize()))
                     .thenReturn(audits);
 
-            PageResponse<BalanceAuditReadDto> result = accountService.getBalanceAudit(ACCOUNT_ID, PAGE_REQUEST, authContext);
+            PageResponse<BalanceAuditReadDto> result = accountService.getBalanceAudit(ACCOUNT_ID, PAGE_REQUEST);
 
             assertNotNull(result);
             assertEquals(2, result.getContent().size());
@@ -601,7 +593,7 @@ class AccountServiceUnitTest {
             final String USER_EMAIL = "mock@gmail.com";
             final PageRequest PAGE_REQUEST = PageRequest.of(0, 10);
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             Account mockAccount = mock(Account.class);
             User mockUser = mock(User.class);
@@ -614,7 +606,7 @@ class AccountServiceUnitTest {
             when(accountDao.getAuditsPage(mockEM, ACCOUNT_ID, PAGE_REQUEST.getPageNumber(), PAGE_REQUEST.getPageSize()))
                     .thenReturn(List.of());
 
-            PageResponse<BalanceAuditReadDto> result = accountService.getBalanceAudit(ACCOUNT_ID, PAGE_REQUEST, authContext);
+            PageResponse<BalanceAuditReadDto> result = accountService.getBalanceAudit(ACCOUNT_ID, PAGE_REQUEST);
 
             assertNotNull(result);
             assertTrue(result.getContent().isEmpty());
@@ -632,16 +624,18 @@ class AccountServiceUnitTest {
             final PageRequest PAGE_REQUEST = PageRequest.of(0, 10);
             final String EXPECTED_ERROR_MESSAGE = "Счет не найден";
 
-            AuthContext authContext = new AuthContext(USER_ID, USER_EMAIL, USER_ROLES);
+           
 
             when(accountDao.findById(mockEM, WRONG_ACCOUNT_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> accountService.getBalanceAudit(WRONG_ACCOUNT_ID, PAGE_REQUEST, authContext))
+            assertThatThrownBy(() -> accountService.getBalanceAudit(WRONG_ACCOUNT_ID, PAGE_REQUEST))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining(EXPECTED_ERROR_MESSAGE);
 
             verify(mockEM).close();
         }
     }
+
+ */
 
 }

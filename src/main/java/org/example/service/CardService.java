@@ -31,9 +31,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CardService {
 
+
+    private final EntityManagerFactory emf;
     private final CardDao cardDao;
     private final AccountDao accountDao;
-    private final EntityManagerFactory emf;
 
     private static final DateTimeFormatter EXPIRY_FORMAT = DateTimeFormatter.ofPattern("MM/yy");
 
@@ -46,13 +47,11 @@ public class CardService {
      * где YYYY — последние 4 цифры случайного числа.</p>
      *
      * @param createDto    DTO с данными для выпуска карты
-     * @param authContext  контекст аутентификации
      * @return DTO с информацией о выпущенной карте
      * @throws EntityNotFoundException если счет не найден
      * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public CardReadDto createCard(CardCreateDto createDto, AuthContext authContext) {
-        SecurityUtil.checkAuthenticated(authContext);
+    public CardReadDto createCard(CardCreateDto createDto) {
 
         ValidatorUtil.validate(createDto);
 
@@ -64,8 +63,6 @@ public class CardService {
 
             Account account = accountDao.findById(em, createDto.accountId())
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + createDto.accountId() + " не найден"));
-
-            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
 
             // Проверка лимита карт на счете (не более 5)
             long cardCount = cardDao.countByAccountId(em, account.getId());
@@ -88,8 +85,8 @@ public class CardService {
             cardDao.save(em, card);
             tx.commit();
 
-            log.info("Выпущена новая карта {} для счета {} пользователем {}",
-                    card.getCardNumber(), account.getAccountNumber(), authContext.getUserId());
+            log.info("Выпущена новая карта {} для счета {}",
+                    card.getCardNumber(), account.getAccountNumber());
 
             return mapToReadDto(card);
 
@@ -108,21 +105,17 @@ public class CardService {
      * </p>
      *
      * @param cardId       идентификатор карты
-     * @param authContext  контекст аутентификации
      * @return DTO с информацией о карте
      * @throws EntityNotFoundException если карта не найдена
      * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public CardReadDto getCard(Long cardId, AuthContext authContext) {
-        SecurityUtil.checkAuthenticated(authContext);
+    public CardReadDto getCard(Long cardId) {
 
         EntityManager em = emf.createEntityManager();
 
         try {
             Card card = cardDao.findById(em, cardId)
                     .orElseThrow(() -> new EntityNotFoundException("Карта с id " + cardId + " не найдена"));
-
-            SecurityUtil.checkAdminOrOwner(authContext, card.getUser().getId());
 
             return mapToReadDto(card);
 
@@ -138,13 +131,10 @@ public class CardService {
      * </p>
      *
      * @param userId       идентификатор пользователя
-     * @param authContext  контекст аутентификации
      * @return список DTO карт пользователя
      * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public List<CardReadDto> getUserCards(Long userId, AuthContext authContext) {
-        SecurityUtil.checkAuthenticated(authContext);
-        SecurityUtil.checkAdminOrOwner(authContext, userId);
+    public List<CardReadDto> getUserCards(Long userId) {
 
         EntityManager em = emf.createEntityManager();
 
@@ -165,21 +155,17 @@ public class CardService {
      * </p>
      *
      * @param accountId    идентификатор счета
-     * @param authContext  контекст аутентификации
      * @return список DTO карт счета
      * @throws EntityNotFoundException если счет не найден
      * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public List<CardReadDto> getAccountCards(Long accountId, AuthContext authContext) {
-        SecurityUtil.checkAuthenticated(authContext);
+    public List<CardReadDto> getAccountCards(Long accountId) {
 
         EntityManager em = emf.createEntityManager();
 
         try {
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
-
-            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
 
             return cardDao.findByAccountId(em, accountId).stream()
                     .map(this::mapToReadDto)
@@ -198,13 +184,11 @@ public class CardService {
      *
      * @param cardId       идентификатор карты
      * @param updateDto    DTO с обновленными данными
-     * @param authContext  контекст аутентификации
      * @return DTO с обновленной информацией о карте
      * @throws EntityNotFoundException если карта не найдена
      * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public CardReadDto updateCard(Long cardId, CardUpdateDto updateDto, AuthContext authContext) {
-        SecurityUtil.checkAuthenticated(authContext);
+    public CardReadDto updateCard(Long cardId, CardUpdateDto updateDto) {
 
         ValidatorUtil.validate(updateDto);
 
@@ -217,7 +201,6 @@ public class CardService {
             Card card = cardDao.findById(em, cardId)
                     .orElseThrow(() -> new EntityNotFoundException("Карта с id " + cardId + " не найдена"));
 
-            SecurityUtil.checkAdminOrOwner(authContext, card.getUser().getId());
 
             if (updateDto.name() != null) {
                 card.setName(updateDto.name());
@@ -226,7 +209,7 @@ public class CardService {
             cardDao.update(em, card);
             tx.commit();
 
-            log.info("Обновлена карта {} пользователем {}", card.getCardNumber(), authContext.getUserId());
+            log.info("Обновлена карта {}", card.getCardNumber());
 
             return mapToReadDto(card);
 
@@ -248,13 +231,11 @@ public class CardService {
      *
      * @param cardId       идентификатор карты
      * @param reason       причина блокировки
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если карта не найдена
      * @throws IllegalStateException если карта уже заблокирована или истек срок
      * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public void blockCard(Long cardId, String reason, AuthContext authContext) {
-        SecurityUtil.checkAuthenticated(authContext);
+    public void blockCard(Long cardId, String reason) {
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -264,8 +245,6 @@ public class CardService {
 
             Card card = cardDao.findById(em, cardId)
                     .orElseThrow(() -> new EntityNotFoundException("Карта с id " + cardId + " не найдена"));
-
-            SecurityUtil.checkAdminOrOwner(authContext, card.getUser().getId());
 
             if (card.getStatus() == CardStatus.BLOCKED) {
                 throw new IllegalStateException("Карта уже заблокирована");
@@ -279,8 +258,8 @@ public class CardService {
             cardDao.update(em, card);
             tx.commit();
 
-            log.info("Карта {} заблокирована пользователем {}. Причина: {}",
-                    card.getCardNumber(), authContext.getUserId(), reason);
+            log.info("Карта {} заблокирована. Причина: {}",
+                    card.getCardNumber(), reason);
 
         } catch (Exception e) {
             if (tx.isActive()) tx.rollback();
@@ -299,13 +278,11 @@ public class CardService {
      * </p>
      *
      * @param cardId       идентификатор карты
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если карта не найдена
      * @throws IllegalStateException если карта не заблокирована
      * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public void unblockCard(Long cardId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public void unblockCard(Long cardId) {
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -324,7 +301,7 @@ public class CardService {
             cardDao.update(em, card);
             tx.commit();
 
-            log.info("Карта {} разблокирована администратором {}", card.getCardNumber(), authContext.getUserId());
+            log.info("Карта {} разблокирована", card.getCardNumber());
 
         } catch (Exception e) {
             if (tx.isActive()) tx.rollback();
@@ -341,12 +318,10 @@ public class CardService {
      * </p>
      *
      * @param cardId       идентификатор карты
-     * @param authContext  контекст аутентификации
      * @throws EntityNotFoundException если карта не найдена
      * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public void deleteCard(Long cardId, AuthContext authContext) {
-        SecurityUtil.checkAdmin(authContext);
+    public void deleteCard(Long cardId) {
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -360,7 +335,7 @@ public class CardService {
             cardDao.delete(em, card);
             tx.commit();
 
-            log.info("Карта {} удалена администратором {}", card.getCardNumber(), authContext.getUserId());
+            log.info("Карта {} удалена", card.getCardNumber());
 
         } catch (Exception e) {
             if (tx.isActive()) tx.rollback();

@@ -12,11 +12,13 @@ public class AccountReadMapper implements BaseMapper<Account, AccountReadDto>{
     @Override
     public AccountReadDto map(Account object) {
         return new AccountReadDto(
+                object.getId(),
                 userReadMapper.map(object.getUser()),
                 object.getAccountNumber(),
                 object.getBalance(),
                 object.getCurrencyCode(),
                 object.getAccountType(),
+                object.getStatus(),
                 object.getOpeningDate(),
                 object.getClosingDate()
         );
