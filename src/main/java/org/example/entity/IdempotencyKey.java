@@ -25,7 +25,7 @@ public class IdempotencyKey {
     private UUID key;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "transaction_id", nullable = false)
+    @JoinColumn(name = "transaction_id") //
     private BankTransaction transaction;
 
     @Column(name = "created_at", nullable = false)

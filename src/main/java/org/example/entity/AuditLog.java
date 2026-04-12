@@ -13,7 +13,7 @@ import java.util.Objects;
 @Entity
 @Table(name = "audit_log")
 @Getter
-@ToString(exclude = {"user", "transaction"})
+@ToString(exclude = {"user"})
 public class AuditLog {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "audit_log_id_generator")
@@ -65,10 +65,6 @@ public class AuditLog {
     @Column(name = "thread_name", length = 100)
     private String threadName;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "transaction_id")
-    private BankTransaction transaction;  // ссылка на транзакцию (если есть)
-
     @Column(name = "execution_time_ms")
     private Long executionTimeMs;  // сколько миллисекунд заняло действие
 
@@ -91,7 +87,6 @@ public class AuditLog {
         this.errorMessage = builder.errorMessage;
         this.createdAt = builder.createdAt != null ? builder.createdAt : LocalDateTime.now();
         this.threadName = builder.threadName != null ? builder.threadName : Thread.currentThread().getName();
-        this.transaction = builder.transaction;
         this.executionTimeMs = builder.executionTimeMs;
     }
 
@@ -127,7 +122,6 @@ public class AuditLog {
         private String errorMessage;
         private LocalDateTime createdAt;
         private String threadName;
-        private BankTransaction transaction;
         private Long executionTimeMs;
 
         public Builder user(User user) {
@@ -201,11 +195,6 @@ public class AuditLog {
 
         public Builder threadName(String threadName) {
             this.threadName = threadName;
-            return this;
-        }
-
-        public Builder transaction(BankTransaction transaction) {
-            this.transaction = transaction;
             return this;
         }
 

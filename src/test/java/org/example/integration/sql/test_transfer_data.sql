@@ -2,6 +2,7 @@ DELETE FROM idempotency_keys;
 DELETE FROM transactions;
 DELETE FROM account_balance_audit;
 DELETE FROM accounts;
+DELETE FROM audit_log;
 DELETE FROM users;
 
 INSERT INTO users (id, email, first_name, last_name, password_hash, created_at, version)

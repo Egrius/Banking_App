@@ -6,6 +6,7 @@ import org.example.entity.enums.Status;
 import org.example.entity.enums.TransactionStatus;
 
 import java.util.List;
+import java.util.Optional;
 
 public class TransactionDao extends BaseDaoImpl<BankTransaction, Long> {
     public TransactionDao() {
@@ -22,6 +23,17 @@ public class TransactionDao extends BaseDaoImpl<BankTransaction, Long> {
                 .setFirstResult(pageNum * pageSize)
                 .setMaxResults(pageSize)
                 .getResultList();
+    }
+
+    public Optional<BankTransaction> findByIdWithAccountsAndUsers(EntityManager em, Long transactionId) {
+        return Optional.of( em.createQuery("SELECT t FROM BankTransaction t " +
+                "JOIN FETCH t.fromAccount " +
+                "JOIN FETCH t.toAccount " +
+                "JOIN FETCH t.fromAccount.user " +
+                "JOIN FETCH t.toAccount.user " +
+                "WHERE t.id = :transactionId ", BankTransaction.class)
+                .setParameter("transactionId", transactionId)
+                .getSingleResult());
     }
 
     public long countByToAccountId(EntityManager em, Long accountId) {

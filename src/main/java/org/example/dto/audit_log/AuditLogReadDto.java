@@ -1,9 +1,6 @@
 package org.example.dto.audit_log;
 
-import org.example.dto.transation.TransactionReadDto;
 import org.example.dto.user.UserReadDto;
-import org.example.entity.BankTransaction;
-import org.example.entity.User;
 import org.example.entity.enums.ActionType;
 import org.example.entity.enums.AuditStatus;
 import org.example.entity.enums.EntityType;
@@ -24,6 +21,5 @@ public record AuditLogReadDto(
         String errorMessage,
         LocalDateTime createdAt,
         String threadName,
-        TransactionReadDto transaction,
         Long executionTimeMs
 ) { }

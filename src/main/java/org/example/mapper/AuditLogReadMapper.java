@@ -25,7 +25,6 @@ public class AuditLogReadMapper implements BaseMapper<AuditLog, AuditLogReadDto>
                 object.getErrorMessage(),
                 object.getCreatedAt(),
                 object.getThreadName(),
-                transactionReadMapper.map(object.getTransaction()),
                 object.getExecutionTimeMs()
         );
     }

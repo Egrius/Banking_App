@@ -69,13 +69,11 @@ import org.example.dto.transation.TransactionReadDto;
 import org.example.entity.Account;
 import org.example.entity.AccountBalanceAudit;
 import org.example.entity.BankTransaction;
+import org.example.entity.enums.CurrencyCode;
 import org.example.entity.enums.Status;
 import org.example.entity.enums.TransactionStatus;
 import org.example.interceptor.AuditLogTransactionInterceptor;
 import org.example.mapper.TransactionReadMapper;
-import org.example.security.AuthContext;
-import org.example.util.SecurityUtil;
-import org.example.util.ValidatorUtil;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.event.service.spi.EventListenerRegistry;
@@ -114,6 +112,37 @@ public class TransactionService {
         registry.appendListeners(EventType.POST_UPDATE, auditInterceptor);
     }
 
+    private enum TransferLimit {
+        RUB(new BigDecimal("5"), new BigDecimal("700")),
+        US(new BigDecimal("5"), new BigDecimal("400")),
+        EUR(new BigDecimal("5"), new BigDecimal("400"));
+
+        private final BigDecimal min;
+        private final BigDecimal max;
+
+        TransferLimit(BigDecimal min, BigDecimal max) {
+            this.min = min;
+            this.max = max;
+        }
+
+        public static TransferLimit fromCurrency(CurrencyCode currency) {
+            return switch (currency) {
+                case RUB -> RUB;
+                case US -> US;
+                case EUR -> EUR;
+            };
+        }
+
+        public BigDecimal getMin() {
+            return min;
+        }
+
+        public BigDecimal getMax() {
+            return max;
+        }
+    }
+
+    // ВОЗНИКАЕТ N+1 ПРИ МАППИНГЕ ТРАНЗАКЦИИ В СЛУЧАЕ ПОВТОРНОГО КЛЮЧА: ГРУЗЯТСЯ РОЛИ ДВУХ ЮЗЕРОВ
     public TransactionReadDto transfer(TransactionCreateDto transactionCreateDto) {
 
         // Проверка на идемпотентность (если повторно одно и то же, то чекнуть статус, если pending, то дать возможность повторить?)
@@ -138,7 +167,7 @@ public class TransactionService {
             if(transactionId != null) {
                 try (EntityManager em = emf.createEntityManager()) {
 
-                    Optional<BankTransaction> transactionOptional = transactionDao.findById(em, transactionId);
+                    Optional<BankTransaction> transactionOptional = transactionDao.findByIdWithAccountsAndUsers(em, transactionId);
 
                     // Если транзакция из ключа существует.
                     // Если её нет в ключе, то для этого ключа будет создана новая?
@@ -164,7 +193,7 @@ public class TransactionService {
                         }
                     }
                 }
-            } else{
+            } else {
                 idempotencyService.delete(idempotencyKeyReadDto.id());
                 throw new IllegalStateException("В ключе отсутствует привязанная транзакция");
             }
@@ -185,15 +214,6 @@ public class TransactionService {
 
             Long firstId = id1 < id2 ? id1 : id2;
             Long secondId = id1 < id2 ? id2 : id1;
-
-            // Проверка статусов счетов (получить + проверить)
-            /*
-            Account first  = Optional.of(em.find(Account.class, firstId, LockModeType.PESSIMISTIC_WRITE))
-                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт отправителя с id " + transactionCreateDto.fromAccountId() + " не найден"));
-
-            Account second = Optional.of(em.find(Account.class, secondId, LockModeType.PESSIMISTIC_WRITE))
-                    .orElseThrow(() -> new EntityNotFoundException("Аккаунт получателя с id " + transactionCreateDto.toAccountId() + " не найден"));
-             */
 
             Account first = accountDao.findByIdWithUserAndPessimisticWrite(em, firstId)
                     .orElseThrow(() -> new EntityNotFoundException("Аккаунт отправителя с id " + transactionCreateDto.fromAccountId() + " не найден"));
@@ -217,6 +237,23 @@ public class TransactionService {
             }
 
             // Проверка лимитов(дневной лимит + максимальная сумма) (пока не реализовано)
+
+            // Проверка лимитов за одну транзакцию
+            // после проверки валют (до проверки достаточности средств)
+            TransferLimit limit = TransferLimit.fromCurrency(fromAccount.getCurrencyCode());
+            if (transactionCreateDto.amount().compareTo(limit.getMin()) < 0) {
+                throw new IllegalStateException(
+                        String.format("Минимальная сумма перевода для %s: %s",
+                                fromAccount.getCurrencyCode(), limit.getMin())
+                );
+            }
+
+            if (transactionCreateDto.amount().compareTo(limit.getMax()) > 0) {
+                throw new IllegalStateException(
+                        String.format("Максимальная сумма перевода для %s: %s",
+                                fromAccount.getCurrencyCode(), limit.getMax())
+                );
+            }
 
             // Проверка достаточности средств
             if(fromAccount.getBalance().compareTo(transactionCreateDto.amount()) < 0) {
@@ -247,7 +284,7 @@ public class TransactionService {
                     bankTransaction,
                     LocalDateTime.now()
             );
-
+            
             idempotencyService.createKey(idempotencyKeyCreateDto, em);
 
             BigDecimal fromBalanceAfter =fromAccount.getBalance().subtract(transactionCreateDto.amount());
