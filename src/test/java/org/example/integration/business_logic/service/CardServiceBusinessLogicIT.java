@@ -1,4 +1,4 @@
-package org.example.integration.service.business_logic;
+package org.example.integration.business_logic.service;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
@@ -14,6 +14,7 @@ import org.example.entity.enums.CardStatus;
 import org.example.entity.enums.CardType;
 import org.example.entity.enums.CurrencyCode;
 import org.example.integration.config.AbstractCardServiceIntegrationTest;
+import org.example.security.AuthContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -28,8 +29,6 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
     @BeforeEach
     void cleanUp() {
-        // ПОРЯДОК КРИТИЧЕН!
-
         deleteAllCards();
         deleteAllUsers();
         deleteAllAccounts();
@@ -41,15 +40,14 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void createCard_shouldCreateNewCardSuccessfully() {
-            
             User user = createUserInDB("cardtest@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
             CardCreateDto createDto = new CardCreateDto(account.getId(), CurrencyCode.US, "CARDHOLDER NAME", CardType.DEBIT, "My Debit Card");
 
-            
-            CardReadDto createdCard = cardService.createCard(createDto);
-  
+            CardReadDto createdCard = cardService.createCard(createDto, authContext);
+
             assertNotNull(createdCard);
             assertNotNull(createdCard.id());
             assertEquals(account.getId(), createdCard.accountId());
@@ -61,7 +59,6 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
             assertNotNull(createdCard.cardNumber());
             assertNotNull(createdCard.expiryDate());
 
-            // Проверка в БД
             EntityManager em = sessionFactory.createEntityManager();
             try {
                 Card cardFromDb = cardDao.findById(em, createdCard.id()).orElseThrow();
@@ -74,30 +71,28 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void createCard_shouldThrowEntityNotFoundException_whenAccountNotFound() {
-            
+            User user = createUserInDB("cardtest@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
             CardCreateDto createDto = new CardCreateDto(999L, CurrencyCode.US, "HOLDER NAME", CardType.DEBIT, "My Card");
 
-              
-            assertThatThrownBy(() -> cardService.createCard(createDto))
+            assertThatThrownBy(() -> cardService.createCard(createDto, authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найден");
         }
 
         @Test
         void createCard_shouldThrowException_whenAccountHasMaxCardsLimit() {
-            
             User user = createUserInDB("maxcards@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
-            // Создаем 5 карт (максимум)
             for (int i = 0; i < 5; i++) {
-                createCardInDB(account.getId(), generateCardNumber(),"Holder " + i, CardType.DEBIT, CardStatus.ACTIVE, "Test name");
+                createCardInDB(account.getId(), generateCardNumber(), "Holder " + i, CardType.DEBIT, CardStatus.ACTIVE, "Test name");
             }
 
             CardCreateDto sixthCard = new CardCreateDto(account.getId(), CurrencyCode.US, "Sixth Holder", CardType.DEBIT, "Sixth Card");
 
-              
-            assertThatThrownBy(() -> cardService.createCard(sixthCard))
+            assertThatThrownBy(() -> cardService.createCard(sixthCard, authContext))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Нельзя выпустить более 5 карт");
         }
@@ -108,14 +103,13 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void getCard_shouldReturnCard_whenCardExists() {
-            
             User user = createUserInDB("getcard@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
-            Card card = createCardInDB(account.getId(),generateCardNumber(), "Get Card Holder", CardType.DEBIT, CardStatus.ACTIVE, "Test name");
+            Card card = createCardInDB(account.getId(), generateCardNumber(), "Get Card Holder", CardType.DEBIT, CardStatus.ACTIVE, "Test name");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
-            
-            CardReadDto foundCard = cardService.getCard(card.getId());
-  
+            CardReadDto foundCard = cardService.getCard(card.getId(), authContext);
+
             assertNotNull(foundCard);
             assertEquals(card.getId(), foundCard.id());
             assertEquals(card.getCardNumber(), foundCard.cardNumber());
@@ -124,8 +118,10 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void getCard_shouldThrowEntityNotFoundException_whenCardNotFound() {
-              
-            assertThatThrownBy(() -> cardService.getCard(999L))
+            User user = createUserInDB("getcard@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
+
+            assertThatThrownBy(() -> cardService.getCard(999L, authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найдена");
         }
@@ -136,19 +132,17 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void getUserCards_shouldReturnAllUserCards() {
-            
             User user = createUserInDB("usercards@test.com", "password123", "Test", "User");
             Account account1 = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
             Account account2 = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.EUR, AccountType.CREDIT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
             Card card1 = createCardInDB(account1.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Card One");
-            Card card2 = createCardInDB(account1.getId(),generateCardNumber(), user.getEmail(), CardType.CREDIT, CardStatus.ACTIVE, "Card Two");
-            Card card3 = createCardInDB(account2.getId(),generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Card Three");
+            Card card2 = createCardInDB(account1.getId(), generateCardNumber(), user.getEmail(), CardType.CREDIT, CardStatus.ACTIVE, "Card Two");
+            Card card3 = createCardInDB(account2.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Card Three");
 
-            System.out.println("------ПОСЛЕ СОЗДАНИЯ");
+            List<CardReadDto> userCards = cardService.getUserCards(user.getId(), authContext);
 
-            List<CardReadDto> userCards = cardService.getUserCards(user.getId());
-  
             assertNotNull(userCards);
             assertEquals(3, userCards.size());
             assertTrue(userCards.stream().anyMatch(c -> c.id().equals(card1.getId())));
@@ -158,12 +152,11 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void getUserCards_shouldReturnEmptyList_whenUserHasNoCards() {
-            
             User user = createUserInDB("nocards@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
-            
-            List<CardReadDto> userCards = cardService.getUserCards(user.getId());
-  
+            List<CardReadDto> userCards = cardService.getUserCards(user.getId(), authContext);
+
             assertNotNull(userCards);
             assertTrue(userCards.isEmpty());
         }
@@ -174,17 +167,16 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void getAccountCards_shouldReturnAllCardsForAccount() {
-            
             User user = createUserInDB("accountcards@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
-            Card card1 = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(),CardType.DEBIT, CardStatus.ACTIVE, "Account Card One");
+            Card card1 = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Account Card One");
             Card card2 = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.CREDIT, CardStatus.ACTIVE, "Account Card Two");
-            Card card3 = createCardInDB(account.getId(),  generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Account Card Three");
+            Card card3 = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Account Card Three");
 
-            
-            List<CardReadDto> accountCards = cardService.getAccountCards(account.getId());
-  
+            List<CardReadDto> accountCards = cardService.getAccountCards(account.getId(), authContext);
+
             assertNotNull(accountCards);
             assertEquals(3, accountCards.size());
             assertTrue(accountCards.stream().anyMatch(c -> c.id().equals(card1.getId())));
@@ -194,8 +186,10 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void getAccountCards_shouldThrowEntityNotFoundException_whenAccountNotFound() {
-              
-            assertThatThrownBy(() -> cardService.getAccountCards(999L))
+            User user = createUserInDB("accountcards@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
+
+            assertThatThrownBy(() -> cardService.getAccountCards(999L, authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найден");
         }
@@ -206,20 +200,18 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void updateCard_shouldUpdateCardNameSuccessfully() {
-            
             User user = createUserInDB("updatecard@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
             Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Old card name");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
             CardUpdateDto updateDto = new CardUpdateDto("New Card Name");
 
-            
-            CardReadDto updatedCard = cardService.updateCard(card.getId(), updateDto);
-  
+            CardReadDto updatedCard = cardService.updateCard(card.getId(), updateDto, authContext);
+
             assertEquals("New Card Name", updatedCard.name());
             assertEquals(card.getCardNumber(), updatedCard.cardNumber());
 
-            // Проверка в БД
             EntityManager em = sessionFactory.createEntityManager();
             try {
                 Card cardFromDb = cardDao.findById(em, card.getId()).orElseThrow();
@@ -229,28 +221,27 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
             }
         }
 
-        // Тут проблема т.к дто не валидируется
         @Test
         void updateCard_shouldKeepOldName_whenUpdateDtoHasNullName() {
-            
             User user = createUserInDB("keepname@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
-            Card card = createCardInDB(account.getId(), generateCardNumber(),user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Original Name");
+            Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Original Name");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
             CardUpdateDto updateDto = new CardUpdateDto(null);
-            
-            CardReadDto updatedCard = cardService.updateCard(card.getId(), updateDto);
-  
+
+            CardReadDto updatedCard = cardService.updateCard(card.getId(), updateDto, authContext);
+
             assertEquals("Original Name", updatedCard.name());
         }
 
         @Test
         void updateCard_shouldThrowEntityNotFoundException_whenCardNotFound() {
-            
+            User user = createUserInDB("updatecard@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
             CardUpdateDto updateDto = new CardUpdateDto("New Name");
 
-              
-            assertThatThrownBy(() -> cardService.updateCard(999L, updateDto))
+            assertThatThrownBy(() -> cardService.updateCard(999L, updateDto, authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найдена");
         }
@@ -261,14 +252,13 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void blockCard_shouldBlockActiveCardSuccessfully() {
-            
             User user = createUserInDB("blockcard@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
-            Card card = createCardInDB(account.getId(),generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "To Block");
+            Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "To Block");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
-            
-            cardService.blockCard(card.getId(), "Lost card");
-  
+            cardService.blockCard(card.getId(), "Lost card", authContext);
+
             EntityManager em = sessionFactory.createEntityManager();
             try {
                 Card cardFromDb = cardDao.findById(em, card.getId()).orElseThrow();
@@ -280,21 +270,22 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void blockCard_shouldThrowException_whenCardAlreadyBlocked() {
-            
             User user = createUserInDB("alreadyblocked@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
             Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.BLOCKED, "Already Blocked");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
-              
-            assertThatThrownBy(() -> cardService.blockCard(card.getId(), "Second block"))
+            assertThatThrownBy(() -> cardService.blockCard(card.getId(), "Second block", authContext))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("уже заблокирована");
         }
 
         @Test
         void blockCard_shouldThrowEntityNotFoundException_whenCardNotFound() {
-              
-            assertThatThrownBy(() -> cardService.blockCard(999L, "Reason"))
+            User user = createUserInDB("blockcard@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
+
+            assertThatThrownBy(() -> cardService.blockCard(999L, "Reason", authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найдена");
         }
@@ -305,14 +296,13 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void unblockCard_shouldUnblockBlockedCardSuccessfully() {
-            
             User user = createUserInDB("unblockcard@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
-            Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(),  CardType.DEBIT, CardStatus.BLOCKED, "To Unblock");
+            Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.BLOCKED, "To Unblock");
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
 
-            
-            cardService.unblockCard(card.getId());
-  
+            cardService.unblockCard(card.getId(), adminContext);
+
             EntityManager em = sessionFactory.createEntityManager();
             try {
                 Card unblockedCard = cardDao.findById(em, card.getId()).orElseThrow();
@@ -324,21 +314,22 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void unblockCard_shouldThrowException_whenCardNotBlocked() {
-            
             User user = createUserInDB("notblocked@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
             Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Active Card");
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
 
-              
-            assertThatThrownBy(() -> cardService.unblockCard(card.getId()))
+            assertThatThrownBy(() -> cardService.unblockCard(card.getId(), adminContext))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Разблокировать можно только заблокированную карту");
         }
 
         @Test
         void unblockCard_shouldThrowEntityNotFoundException_whenCardNotFound() {
-              
-            assertThatThrownBy(() -> cardService.unblockCard(999L))
+            User user = createUserInDB("unblockcard@test.com", "password123", "Test", "User");
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
+
+            assertThatThrownBy(() -> cardService.unblockCard(999L, adminContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найдена");
         }
@@ -349,12 +340,11 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void deleteCard_shouldDeleteCardSuccessfully() {
-            
             User user = createUserInDB("deletecard@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
             Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "To Delete");
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
 
-            // verify card exists
             EntityManager em = sessionFactory.createEntityManager();
             try {
                 assertTrue(cardDao.findById(em, card.getId()).isPresent());
@@ -362,9 +352,8 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
                 em.close();
             }
 
-            
-            cardService.deleteCard(card.getId());
-  
+            cardService.deleteCard(card.getId(), adminContext);
+
             em = sessionFactory.createEntityManager();
             try {
                 assertFalse(cardDao.findById(em, card.getId()).isPresent());
@@ -375,8 +364,10 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void deleteCard_shouldThrowEntityNotFoundException_whenCardNotFound() {
-              
-            assertThatThrownBy(() -> cardService.deleteCard(999L))
+            User user = createUserInDB("deletecard@test.com", "password123", "Test", "User");
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
+
+            assertThatThrownBy(() -> cardService.deleteCard(999L, adminContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найдена");
         }
@@ -387,54 +378,31 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void isCardActive_shouldReturnTrue_whenCardIsActive() {
-            
             User user = createUserInDB("activecard@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
             Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.ACTIVE, "Active Card");
 
-            
-            EntityManager em = sessionFactory.createEntityManager();
-            try {
-                boolean isActive = cardService.isCardActive(card.getId(), em);
+            boolean isActive = cardService.isCardActive(card.getId());
 
-                // then
-                assertTrue(isActive);
-            } finally {
-                em.close();
-            }
+            assertTrue(isActive);
         }
 
         @Test
         void isCardActive_shouldReturnFalse_whenCardIsBlocked() {
-            
             User user = createUserInDB("blockedactive@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
             Card card = createCardInDB(account.getId(), generateCardNumber(), user.getEmail(), CardType.DEBIT, CardStatus.BLOCKED, "Blocked Card");
 
-            
-            EntityManager em = sessionFactory.createEntityManager();
-            try {
-                boolean isActive = cardService.isCardActive(card.getId(), em);
+            boolean isActive = cardService.isCardActive(card.getId());
 
-                // then
-                assertFalse(isActive);
-            } finally {
-                em.close();
-            }
+            assertFalse(isActive);
         }
 
         @Test
         void isCardActive_shouldReturnFalse_whenCardDoesNotExist() {
-            
-            EntityManager em = sessionFactory.createEntityManager();
-            try {
-                boolean isActive = cardService.isCardActive(999L, em);
+            boolean isActive = cardService.isCardActive(999L);
 
-                // then
-                assertFalse(isActive);
-            } finally {
-                em.close();
-            }
+            assertFalse(isActive);
         }
     }
 
@@ -443,18 +411,18 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void createCard_shouldGenerateUniqueCardNumbers() {
-            
             User user = createUserInDB("uniquenumbers@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
             CardCreateDto card1Dto = new CardCreateDto(account.getId(), CurrencyCode.US, "Card One", CardType.DEBIT, "Card 1");
             CardCreateDto card2Dto = new CardCreateDto(account.getId(), CurrencyCode.US, "Card Two", CardType.CREDIT, "Card 2");
             CardCreateDto card3Dto = new CardCreateDto(account.getId(), CurrencyCode.US, "Card Three", CardType.DEBIT, "Card 3");
 
-            CardReadDto card1 = cardService.createCard(card1Dto);
-            CardReadDto card2 = cardService.createCard(card2Dto);
-            CardReadDto card3 = cardService.createCard(card3Dto);
-  
+            CardReadDto card1 = cardService.createCard(card1Dto, authContext);
+            CardReadDto card2 = cardService.createCard(card2Dto, authContext);
+            CardReadDto card3 = cardService.createCard(card3Dto, authContext);
+
             assertNotNull(card1.cardNumber());
             assertNotNull(card2.cardNumber());
             assertNotNull(card3.cardNumber());
@@ -466,14 +434,13 @@ class CardServiceBusinessLogicIT extends AbstractCardServiceIntegrationTest {
 
         @Test
         void createCard_shouldGenerateCardNumberInCorrectFormat() {
-            
             User user = createUserInDB("format@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), generateAccountNumber(user.getId()), CurrencyCode.US, AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of("USER"));
 
-            
             CardCreateDto createDto = new CardCreateDto(account.getId(), CurrencyCode.US, "Format Card", CardType.DEBIT, "Format Card");
-            CardReadDto card = cardService.createCard(createDto);
-  
+            CardReadDto card = cardService.createCard(createDto, authContext);
+
             String cardNumber = card.cardNumber();
             assertTrue(cardNumber.matches("\\*\\*\\*\\*-\\*\\*\\*\\*-\\*\\*\\*\\*-\\d{4}"),
                     "Card number should match format ****-****-****-XXXX");

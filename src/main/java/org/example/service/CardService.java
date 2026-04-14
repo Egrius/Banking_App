@@ -22,15 +22,10 @@ import java.util.stream.Collectors;
 
 /**
  * Сервис для управления банковскими картами.
- * <p>
- * Обеспечивает выпуск, просмотр, блокировку и удаление карт.
- * Все операции доступны только владельцу карты или администратору.
- * </p>
  */
 @Slf4j
 @RequiredArgsConstructor
 public class CardService {
-
 
     private final EntityManagerFactory emf;
     private final CardDao cardDao;
@@ -40,19 +35,8 @@ public class CardService {
 
     /**
      * Выпуск новой карты.
-     * <p>
-     * <b>Доступно владельцу счета или администратору.</b>
-     * </p>
-     * <p>Генерирует номер карты в формате: XXXX-XXXX-XXXX-YYYY, (полный номер не создается в целях демонстрации)
-     * где YYYY — последние 4 цифры случайного числа.</p>
-     *
-     * @param createDto    DTO с данными для выпуска карты
-     * @return DTO с информацией о выпущенной карте
-     * @throws EntityNotFoundException если счет не найден
-     * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public CardReadDto createCard(CardCreateDto createDto) {
-
+    public CardReadDto createCard(CardCreateDto createDto, AuthContext authContext) {
         ValidatorUtil.validate(createDto);
 
         EntityManager em = emf.createEntityManager();
@@ -63,6 +47,9 @@ public class CardService {
 
             Account account = accountDao.findById(em, createDto.accountId())
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + createDto.accountId() + " не найден"));
+
+            // Проверка прав: владелец счета или админ
+            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
 
             // Проверка лимита карт на счете (не более 5)
             long cardCount = cardDao.countByAccountId(em, account.getId());
@@ -100,22 +87,15 @@ public class CardService {
 
     /**
      * Получение карты по идентификатору.
-     * <p>
-     * <b>Доступно владельцу карты или администратору.</b>
-     * </p>
-     *
-     * @param cardId       идентификатор карты
-     * @return DTO с информацией о карте
-     * @throws EntityNotFoundException если карта не найдена
-     * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public CardReadDto getCard(Long cardId) {
-
+    public CardReadDto getCard(Long cardId, AuthContext authContext) {
         EntityManager em = emf.createEntityManager();
 
         try {
             Card card = cardDao.findById(em, cardId)
                     .orElseThrow(() -> new EntityNotFoundException("Карта с id " + cardId + " не найдена"));
+
+            SecurityUtil.checkAdminOrOwner(authContext, card.getUser().getId());
 
             return mapToReadDto(card);
 
@@ -126,15 +106,9 @@ public class CardService {
 
     /**
      * Получение всех карт пользователя.
-     * <p>
-     * <b>Доступно владельцу карт или администратору.</b>
-     * </p>
-     *
-     * @param userId       идентификатор пользователя
-     * @return список DTO карт пользователя
-     * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public List<CardReadDto> getUserCards(Long userId) {
+    public List<CardReadDto> getUserCards(Long userId, AuthContext authContext) {
+        SecurityUtil.checkAdminOrOwner(authContext, userId);
 
         EntityManager em = emf.createEntityManager();
 
@@ -150,22 +124,15 @@ public class CardService {
 
     /**
      * Получение всех карт счета.
-     * <p>
-     * <b>Доступно владельцу счета или администратору.</b>
-     * </p>
-     *
-     * @param accountId    идентификатор счета
-     * @return список DTO карт счета
-     * @throws EntityNotFoundException если счет не найден
-     * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public List<CardReadDto> getAccountCards(Long accountId) {
-
+    public List<CardReadDto> getAccountCards(Long accountId, AuthContext authContext) {
         EntityManager em = emf.createEntityManager();
 
         try {
             Account account = accountDao.findById(em, accountId)
                     .orElseThrow(() -> new EntityNotFoundException("Счет с id " + accountId + " не найден"));
+
+            SecurityUtil.checkAdminOrOwner(authContext, account.getUser().getId());
 
             return cardDao.findByAccountId(em, accountId).stream()
                     .map(this::mapToReadDto)
@@ -178,18 +145,8 @@ public class CardService {
 
     /**
      * Обновление информации о карте (название).
-     * <p>
-     * <b>Доступно владельцу карты или администратору.</b>
-     * </p>
-     *
-     * @param cardId       идентификатор карты
-     * @param updateDto    DTO с обновленными данными
-     * @return DTO с обновленной информацией о карте
-     * @throws EntityNotFoundException если карта не найдена
-     * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public CardReadDto updateCard(Long cardId, CardUpdateDto updateDto) {
-
+    public CardReadDto updateCard(Long cardId, CardUpdateDto updateDto, AuthContext authContext) {
         ValidatorUtil.validate(updateDto);
 
         EntityManager em = emf.createEntityManager();
@@ -201,6 +158,7 @@ public class CardService {
             Card card = cardDao.findById(em, cardId)
                     .orElseThrow(() -> new EntityNotFoundException("Карта с id " + cardId + " не найдена"));
 
+            SecurityUtil.checkAdminOrOwner(authContext, card.getUser().getId());
 
             if (updateDto.name() != null) {
                 card.setName(updateDto.name());
@@ -221,22 +179,10 @@ public class CardService {
         }
     }
 
-    // TODO: навесить оптимистичную блокировку
     /**
      * Блокировка карты.
-     * <p>
-     * <b>Доступно владельцу карты или администратору.</b>
-     * Заблокированную карту нельзя использовать для операций.
-     * </p>
-     *
-     * @param cardId       идентификатор карты
-     * @param reason       причина блокировки
-     * @throws EntityNotFoundException если карта не найдена
-     * @throws IllegalStateException если карта уже заблокирована или истек срок
-     * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
      */
-    public void blockCard(Long cardId, String reason) {
-
+    public void blockCard(Long cardId, String reason, AuthContext authContext) {
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
 
@@ -245,6 +191,8 @@ public class CardService {
 
             Card card = cardDao.findById(em, cardId)
                     .orElseThrow(() -> new EntityNotFoundException("Карта с id " + cardId + " не найдена"));
+
+            SecurityUtil.checkAdminOrOwner(authContext, card.getUser().getId());
 
             if (card.getStatus() == CardStatus.BLOCKED) {
                 throw new IllegalStateException("Карта уже заблокирована");
@@ -258,8 +206,7 @@ public class CardService {
             cardDao.update(em, card);
             tx.commit();
 
-            log.info("Карта {} заблокирована. Причина: {}",
-                    card.getCardNumber(), reason);
+            log.info("Карта {} заблокирована. Причина: {}", card.getCardNumber(), reason);
 
         } catch (Exception e) {
             if (tx.isActive()) tx.rollback();
@@ -269,20 +216,11 @@ public class CardService {
         }
     }
 
-
-    // TODO: навесить оптимистичную блокировку
     /**
-     * Разблокировка карты.
-     * <p>
-     * <b>Доступно только администратору.</b>
-     * </p>
-     *
-     * @param cardId       идентификатор карты
-     * @throws EntityNotFoundException если карта не найдена
-     * @throws IllegalStateException если карта не заблокирована
-     * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
+     * Разблокировка карты (только для администратора).
      */
-    public void unblockCard(Long cardId) {
+    public void unblockCard(Long cardId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -312,16 +250,10 @@ public class CardService {
     }
 
     /**
-     * Удаление карты (физическое удаление из БД).
-     * <p>
-     * <b>Доступно только администратору.</b>
-     * </p>
-     *
-     * @param cardId       идентификатор карты
-     * @throws EntityNotFoundException если карта не найдена
-     * @throws org.example.exception.security_exception.AccessDeniedException если недостаточно прав
+     * Удаление карты (только для администратора).
      */
-    public void deleteCard(Long cardId) {
+    public void deleteCard(Long cardId, AuthContext authContext) {
+        SecurityUtil.checkAdmin(authContext);
 
         EntityManager em = emf.createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -347,46 +279,28 @@ public class CardService {
 
     /**
      * Проверка активности карты.
-     *
-     * @param cardId идентификатор карты
-     * @param em     EntityManager
-     * @return {@code true} если карта активна и не истек срок
      */
-    public boolean isCardActive(Long cardId, EntityManager em) {
-        return cardDao.findById(em, cardId)
-                .map(card -> card.getStatus() == CardStatus.ACTIVE &&
-                        card.getExpiryDate().isAfter(LocalDateTime.now()))
-                .orElse(false);
+    public boolean isCardActive(Long cardId) {
+
+        try(EntityManager em = emf.createEntityManager();) {
+            return cardDao.findById(em, cardId)
+                    .map(card -> card.getStatus() == CardStatus.ACTIVE &&
+                            card.getExpiryDate().isAfter(LocalDateTime.now()))
+                    .orElse(false);
+        }
+
     }
 
-    // TODO: пересмотреть метод
-    /**
-     * Генерация номера карты.
-     * Формат: XXXX-XXXX-XXXX-YYYY, где YYYY — последние 4 цифры.
-     *
-     * @return маскированный номер карты
-     */
     private String generateCardNumber() {
         long random = (long) (Math.random() * 10_000_000_000L);
         String last4 = String.format("%04d", random % 10000);
         return String.format("****-****-****-%s", last4);
     }
 
-    /**
-     * Расчет срока действия карты (5 лет от текущей даты).
-     *
-     * @return дата истечения срока действия
-     */
     private LocalDateTime calculateExpiryDate() {
         return LocalDateTime.now().plusYears(5);
     }
 
-    /**
-     * Преобразование сущности в DTO.
-     *
-     * @param card сущность карты
-     * @return DTO карты
-     */
     private CardReadDto mapToReadDto(Card card) {
         return new CardReadDto(
                 card.getId(),

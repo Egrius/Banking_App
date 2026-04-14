@@ -5,7 +5,10 @@ import jakarta.persistence.LockModeType;
 import jakarta.persistence.NoResultException;
 import org.example.entity.Account;
 import org.example.entity.AccountBalanceAudit;
+import org.example.entity.enums.AccessLevel;
 import org.example.entity.enums.AccountType;
+import org.example.security.AuthContext;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -67,5 +70,32 @@ public class AccountDao extends BaseDaoImpl<Account, Long> {
                 .getResultList()
                 .stream()
                 .findFirst();
+    }
+
+    public Optional<Account> findByAccountIdAndOwnerId(EntityManager em, Long accountId, Long authId) {
+        return Optional.of(em.createQuery("SELECT a FROM Account a WHERE a.id = :accountId AND a.user.id = :authId", Account.class)
+                .getResultList()
+                .getFirst());
+    }
+
+    public AccessLevel checkAccess(EntityManager em, Long accountId, AuthContext auth) {
+        List<String> results = em.createQuery("""
+        SELECT CASE 
+            WHEN a.id IS NULL THEN 'NOT_FOUND'
+            WHEN a.user.id = :userId OR :isAdmin = true THEN 'ALLOWED'
+            ELSE 'DENIED'
+        END
+        FROM Account a WHERE a.id = :accountId
+        """, String.class)
+                .setParameter("accountId", accountId)
+                .setParameter("userId", auth.getUserId())
+                .setParameter("isAdmin", auth.isAdmin())
+                .getResultList();
+
+        if (results.isEmpty()) {
+            return AccessLevel.NOT_FOUND;
+        }
+
+        return AccessLevel.valueOf(results.get(0));
     }
 }

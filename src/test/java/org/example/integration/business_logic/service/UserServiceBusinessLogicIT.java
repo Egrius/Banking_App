@@ -1,4 +1,4 @@
-package org.example.integration.service.business_logic;
+package org.example.integration.business_logic.service;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;

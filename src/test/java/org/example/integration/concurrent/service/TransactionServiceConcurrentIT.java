@@ -1,4 +1,4 @@
-package org.example.integration.service.concurrent.transactionService;
+package org.example.integration.concurrent.service;
 
 import jakarta.persistence.EntityManager;
 import org.example.dto.transation.TransactionCreateDto;

@@ -7,9 +7,14 @@ import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 
-// TODO: перенести AuthContext на слой выше сервисного
-// TODO: Перенести валидацию DTO на слой выше сервисного
+
+// TODO: Закончить компоненты, через которые проходит запрос: фильтр, диспетчер
+// TODO: Сделать AuthService
 // TODO: Сделать связку AuthService с логин методом и сделать ThreadLocal айди сессии у клиента
+
+// TODO: Написать тесты для контроллеров в связке со всей цепочкой
+// TODO: Покрыть транзакционный сервис многопоточными тестами на блокировки
+
 
 public class App 
 {

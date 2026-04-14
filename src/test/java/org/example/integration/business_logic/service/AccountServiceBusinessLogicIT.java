@@ -1,4 +1,4 @@
-package org.example.integration.service.business_logic;
+package org.example.integration.business_logic.service;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
@@ -15,7 +15,9 @@ import org.example.entity.enums.AccountType;
 import org.example.entity.enums.CurrencyCode;
 import org.example.entity.enums.Status;
 import org.example.exception.account.AccountAlreadyExistsException;
+import org.example.exception.security_exception.AccessDeniedException;
 import org.example.integration.config.AbstractAccountServiceIntegrationTest;
+import org.example.security.AuthContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -41,14 +43,13 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void createAccount_shouldCreateNewAccountSuccessfully() {
-           
             User user = createUserInDB("accounttest@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
+
             AccountCreateDto createDto = new AccountCreateDto(user.getId(), CurrencyCode.US, AccountType.CURRENT);
 
-            
             AccountReadDto createdAccount = accountService.createAccount(createDto);
 
-         
             assertNotNull(createdAccount);
             assertNotNull(createdAccount.id());
             assertEquals(user.getId(), createdAccount.user().id());
@@ -67,7 +68,7 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void createAccount_shouldThrowEntityNotFoundException_whenUserNotFound() {
-           
+            AuthContext authContext = new AuthContext(999L, "admin@test.com", List.of("ADMIN"));
             AccountCreateDto createDto = new AccountCreateDto(999L, CurrencyCode.US, AccountType.CURRENT);
 
             assertThatThrownBy(() -> accountService.createAccount(createDto))
@@ -77,8 +78,8 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void createAccount_shouldThrowAccountAlreadyExistsException_whenAccountTypeExists() {
-           
             User user = createUserInDB("duplicate@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
             // Создаем первый счет типа CURRENT
             createAccountInDB(user.getId(), AccountType.CURRENT);
@@ -92,8 +93,8 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void createAccount_shouldAllowDifferentAccountTypes() {
-           
             User user = createUserInDB("differenttypes@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
             // Создаем CURRENT счет
             createAccountInDB(user.getId(), AccountType.CURRENT);
@@ -101,10 +102,8 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
             // Пытаемся создать SAVINGS счет
             AccountCreateDto savingsDto = new AccountCreateDto(user.getId(), CurrencyCode.US, AccountType.SAVINGS);
 
-            
             AccountReadDto savingsAccount = accountService.createAccount(savingsDto);
 
-         
             assertNotNull(savingsAccount);
             assertEquals(AccountType.SAVINGS, savingsAccount.accountType());
         }
@@ -115,14 +114,12 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void getAccount_shouldReturnAccount_whenAccountExists() {
-           
             User user = createUserInDB("getaccount@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
-            
-            AccountReadDto foundAccount = accountService.getAccount(account.getId());
+            AccountReadDto foundAccount = accountService.getAccount(account.getId(), authContext);
 
-         
             assertNotNull(foundAccount);
             assertEquals(account.getId(), foundAccount.id());
             assertEquals(account.getAccountNumber(), foundAccount.accountNumber());
@@ -132,9 +129,24 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void getAccount_shouldThrowEntityNotFoundException_whenAccountNotFound() {
-            assertThatThrownBy(() -> accountService.getAccount(999L))
+            User user = createUserInDB("getaccount@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
+
+            assertThatThrownBy(() -> accountService.getAccount(999L, authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найден");
+        }
+
+        @Test
+        void getAccount_shouldThrowAccessDeniedException_whenUserNotOwner() {
+            User owner = createUserInDB("owner@test.com", "password123", "Test", "User");
+            User otherUser = createUserInDB("other@test.com", "password123", "Other", "User");
+            Account account = createAccountInDB(owner.getId(), AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(otherUser.getId(), otherUser.getEmail(), List.of());
+
+            assertThatThrownBy(() -> accountService.getAccount(account.getId(), authContext))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessageContaining("Недостаточно прав");
         }
     }
 
@@ -143,38 +155,32 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void getUserAccounts_shouldReturnAllUserAccounts() {
-           
             User user = createUserInDB("useraccounts@test.com", "password123", "Test", "User");
 
-            Account CurrentAccount = createAccountInDB(user.getId(), AccountType.CURRENT);
+            Account currentAccount = createAccountInDB(user.getId(), AccountType.CURRENT);
             Account savingsAccount = createAccountInDB(user.getId(), AccountType.SAVINGS);
 
-            
             List<AccountSummaryDto> userAccounts = accountService.getUserAccounts(user.getId());
 
-         
             assertNotNull(userAccounts);
             assertEquals(2, userAccounts.size());
 
-            AccountSummaryDto CURRENTSummary = userAccounts.stream()
+            AccountSummaryDto currentSummary = userAccounts.stream()
                     .filter(a -> a.accountType() == AccountType.CURRENT)
                     .findFirst()
                     .orElseThrow();
 
-            assertEquals(CurrentAccount.getId(), CURRENTSummary.id());
-            assertEquals(CurrentAccount.getAccountNumber(), CURRENTSummary.accountNumber());
-            assertEquals(CurrentAccount.getCurrencyCode(), CURRENTSummary.currencyCode());
+            assertEquals(currentAccount.getId(), currentSummary.id());
+            assertEquals(currentAccount.getAccountNumber(), currentSummary.accountNumber());
+            assertEquals(currentAccount.getCurrencyCode(), currentSummary.currencyCode());
         }
 
         @Test
         void getUserAccounts_shouldReturnEmptyList_whenUserHasNoAccounts() {
-           
             User user = createUserInDB("noaccounts@test.com", "password123", "Test", "User");
 
-            
             List<AccountSummaryDto> userAccounts = accountService.getUserAccounts(user.getId());
 
-         
             assertNotNull(userAccounts);
             assertTrue(userAccounts.isEmpty());
         }
@@ -185,17 +191,15 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void closeAccount_shouldCloseActiveAccountSuccessfully() {
-           
             User user = createUserInDB("closeaccount@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
             assertEquals(Status.ACTIVE, account.getStatus());
             assertNull(account.getClosingDate());
 
-            
-            accountService.closeAccount(account.getId());
+            accountService.closeAccount(account.getId(), authContext);
 
-         
             EntityManager em = sessionFactory.createEntityManager();
             try {
                 Account closedAccount = accountDao.findById(em, account.getId()).orElseThrow();
@@ -208,32 +212,35 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void closeAccount_shouldThrowIllegalStateException_whenAccountAlreadyClosed() {
-           
             User user = createUserInDB("alreadyclosed@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
-            accountService.closeAccount(account.getId());
+            accountService.closeAccount(account.getId(), authContext);
 
-            assertThatThrownBy(() -> accountService.closeAccount(account.getId()))
+            assertThatThrownBy(() -> accountService.closeAccount(account.getId(), authContext))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("уже закрыт");
         }
 
         @Test
         void closeAccount_shouldThrowIllegalStateException_whenAccountBlocked() {
-           
             User user = createUserInDB("blockedclose@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), "BLOCKED-ACC", CurrencyCode.US,
                     AccountType.CURRENT, Status.BLOCKED, BigDecimal.ZERO);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
-            assertThatThrownBy(() -> accountService.closeAccount(account.getId()))
+            assertThatThrownBy(() -> accountService.closeAccount(account.getId(), authContext))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Нельзя закрыть заблокированный счет");
         }
 
         @Test
         void closeAccount_shouldThrowEntityNotFoundException_whenAccountNotFound() {
-            assertThatThrownBy(() -> accountService.closeAccount(999L))
+            User user = createUserInDB("closeaccount@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
+
+            assertThatThrownBy(() -> accountService.closeAccount(999L, authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найден");
         }
@@ -244,16 +251,14 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void blockAccount_shouldBlockActiveAccountSuccessfully() {
-           
             User user = createUserInDB("blockaccount@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), AccountType.CURRENT);
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
 
             assertEquals(Status.ACTIVE, account.getStatus());
 
-            
-            accountService.blockAccount(account.getId(), "Подозрительная активность");
+            accountService.blockAccount(account.getId(), "Подозрительная активность", adminContext);
 
-         
             EntityManager em = sessionFactory.createEntityManager();
             try {
                 Account blockedAccount = accountDao.findById(em, account.getId()).orElseThrow();
@@ -265,32 +270,33 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void blockAccount_shouldThrowIllegalStateException_whenAccountAlreadyBlocked() {
-           
             User user = createUserInDB("alreadyblocked@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), "BLOCKED-ACC", CurrencyCode.US,
                     AccountType.CURRENT, Status.BLOCKED, BigDecimal.ZERO);
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
 
-            assertThatThrownBy(() -> accountService.blockAccount(account.getId(), "Another reason"))
+            assertThatThrownBy(() -> accountService.blockAccount(account.getId(), "Another reason", adminContext))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("уже заблокирован");
         }
 
         @Test
         void blockAccount_shouldThrowIllegalStateException_whenAccountClosed() {
-           
             User user = createUserInDB("closedblock@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), "CLOSED-ACC", CurrencyCode.US,
                     AccountType.CURRENT, Status.CLOSED, BigDecimal.ZERO);
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
 
-
-
-            assertThatThrownBy(() -> accountService.blockAccount(account.getId(), "Try block closed"))
+            assertThatThrownBy(() -> accountService.blockAccount(account.getId(), "Try block closed", adminContext))
                     .isInstanceOf(IllegalStateException.class);
         }
 
         @Test
         void blockAccount_shouldThrowEntityNotFoundException_whenAccountNotFound() {
-            assertThatThrownBy(() -> accountService.blockAccount(999L, "Reason"))
+            User user = createUserInDB("blockaccount@test.com", "password123", "Test", "User");
+            AuthContext adminContext = new AuthContext(user.getId(), user.getEmail(), List.of("ADMIN"));
+
+            assertThatThrownBy(() -> accountService.blockAccount(999L, "Reason", adminContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найден");
         }
@@ -301,34 +307,33 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void getBalance_shouldReturnCorrectBalance() {
-           
             User user = createUserInDB("getbalance@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), "BAL-ACC", CurrencyCode.US,
                     AccountType.CURRENT, Status.ACTIVE, new BigDecimal("1500.50"));
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
-            
-            BigDecimal balance = accountService.getBalance(account.getId());
+            BigDecimal balance = accountService.getBalance(account.getId(), authContext);
 
-         
             assertEquals(new BigDecimal("1500.50"), balance);
         }
 
         @Test
         void getBalance_shouldReturnZeroForNewAccount() {
-           
             User user = createUserInDB("zerobalance@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
-            
-            BigDecimal balance = accountService.getBalance(account.getId());
+            BigDecimal balance = accountService.getBalance(account.getId(), authContext);
 
-         
             assertEquals(BigDecimal.ZERO.doubleValue(), balance.doubleValue());
         }
 
         @Test
         void getBalance_shouldThrowEntityNotFoundException_whenAccountNotFound() {
-            assertThatThrownBy(() -> accountService.getBalance(999L))
+            User user = createUserInDB("getbalance@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
+
+            assertThatThrownBy(() -> accountService.getBalance(999L, authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("не найден");
         }
@@ -339,17 +344,15 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void getBalanceAudit_shouldReturnEmptyPage_whenNoAudits() {
-           
             User user = createUserInDB("audittest@test.com", "password123", "Test", "User");
             Account account = createAccountInDB(user.getId(), AccountType.CURRENT);
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
             PageRequest pageRequest = PageRequest.of(0, 10);
 
-            
             PageResponse<BalanceAuditReadDto> auditPage = accountService.getBalanceAudit(
-                    account.getId(), pageRequest);
+                    account.getId(), pageRequest, authContext);
 
-         
             assertNotNull(auditPage);
             assertEquals(0, auditPage.getPageNumber());
             assertEquals(10, auditPage.getPageSize());
@@ -359,10 +362,11 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void getBalanceAudit_shouldThrowEntityNotFoundException_whenAccountNotFound() {
-           
+            User user = createUserInDB("audittest@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
             PageRequest pageRequest = PageRequest.of(0, 10);
 
-            assertThatThrownBy(() -> accountService.getBalanceAudit(999L, pageRequest))
+            assertThatThrownBy(() -> accountService.getBalanceAudit(999L, pageRequest, authContext))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("Счет не найден");
         }
@@ -373,17 +377,15 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void createAccount_shouldGenerateUniqueAccountNumbers() {
-           
             User user = createUserInDB("uniquenumbers@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
             AccountCreateDto createDto1 = new AccountCreateDto(user.getId(), CurrencyCode.US, AccountType.CURRENT);
             AccountCreateDto createDto2 = new AccountCreateDto(user.getId(), CurrencyCode.EUR, AccountType.SAVINGS);
 
-            
             AccountReadDto account1 = accountService.createAccount(createDto1);
             AccountReadDto account2 = accountService.createAccount(createDto2);
 
-         
             assertNotNull(account1.accountNumber());
             assertNotNull(account2.accountNumber());
             assertNotEquals(account1.accountNumber(), account2.accountNumber());
@@ -391,14 +393,12 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void createAccount_shouldGenerateAccountNumberInCorrectFormat() {
-           
             User user = createUserInDB("format@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
             AccountCreateDto createDto = new AccountCreateDto(user.getId(), CurrencyCode.US, AccountType.CURRENT);
 
-            
             AccountReadDto account = accountService.createAccount(createDto);
 
-         
             String accountNumber = account.accountNumber();
             assertTrue(accountNumber.matches("ACNT-\\d+-\\d+-\\d+"),
                     "Account number should match format ACNT-{userId}-{timestamp}-{random}");
@@ -411,19 +411,17 @@ class AccountServiceBusinessLogicIT extends AbstractAccountServiceIntegrationTes
 
         @Test
         void createAccount_shouldAllowMultipleDifferentAccountsForSameUser() {
-           
             User user = createUserInDB("multi@test.com", "password123", "Test", "User");
+            AuthContext authContext = new AuthContext(user.getId(), user.getEmail(), List.of());
 
-            
-            AccountReadDto CurrentAccount = accountService.createAccount(
+            AccountReadDto currentAccount = accountService.createAccount(
                     new AccountCreateDto(user.getId(), CurrencyCode.US, AccountType.CURRENT));
             AccountReadDto savingsAccount = accountService.createAccount(
                     new AccountCreateDto(user.getId(), CurrencyCode.US, AccountType.SAVINGS));
             AccountReadDto businessAccount = accountService.createAccount(
                     new AccountCreateDto(user.getId(), CurrencyCode.US, AccountType.CREDIT));
 
-         
-            assertNotNull(CurrentAccount);
+            assertNotNull(currentAccount);
             assertNotNull(savingsAccount);
             assertNotNull(businessAccount);
 

@@ -1,4 +1,4 @@
-package org.example.integration.service.edge_cases.idempotencyService;
+package org.example.integration.edge_cases.service;
 
 import org.example.dao.IdempotencyKeyDao;
 import org.example.integration.config.AbstractIntegrationTest;

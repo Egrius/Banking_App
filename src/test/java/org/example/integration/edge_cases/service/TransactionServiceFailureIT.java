@@ -1,4 +1,4 @@
-package org.example.integration.service.edge_cases.transactionService;
+package org.example.integration.edge_cases.service;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
