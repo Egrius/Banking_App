@@ -155,11 +155,11 @@ public class UserServiceBusinessLogicIT extends AbstractUserServiceIntegrationTe
 
             UserLoginDto correctLoginDto = new UserLoginDto(EXISTING_EMAIL, RAW_PASSWORD_FOR_EXISTING);
 
-            UserReadDto loggedInUserReadDto = userService.login(correctLoginDto);
+            UserLoginReadDto loggedInUserReadDto = userService.login(correctLoginDto);
 
-            assertEquals(EXISTING_FIRST_NAME, loggedInUserReadDto.firstName());
-            assertEquals(EXISTING_LAST_NAME, loggedInUserReadDto.lastName());
-            assertEquals(EXISTING_EMAIL, loggedInUserReadDto.email());
+            assertEquals(EXISTING_FIRST_NAME, loggedInUserReadDto.userReadDto().firstName());
+            assertEquals(EXISTING_LAST_NAME, loggedInUserReadDto.userReadDto().lastName());
+            assertEquals(EXISTING_EMAIL, loggedInUserReadDto.userReadDto().email());
         }
 
         @Test
@@ -359,8 +359,8 @@ public class UserServiceBusinessLogicIT extends AbstractUserServiceIntegrationTe
 
             // Проверяем что новый пароль работает
             UserLoginDto loginDto = new UserLoginDto("changepass@test.com", NEW_PASSWORD);
-            UserReadDto loggedInUser = userService.login(loginDto);
-            assertEquals(createdUser.id(), loggedInUser.id());
+            UserLoginReadDto loggedInUser = userService.login(loginDto);
+            assertEquals(createdUser.id(), loggedInUser.userReadDto().id());
         }
 
         @Test

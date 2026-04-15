@@ -34,6 +34,7 @@ import java.util.ConcurrentModificationException;
 public class UserService {
 
     private final EntityManagerFactory emf;
+    private final AuthenticationService authenticationService;
     private final UserDao userDao;
     private final RoleDao roleDao;
     private final UserReadMapper userReadMapper;
@@ -111,7 +112,7 @@ public class UserService {
      * @throws EntityNotFoundException если пользователь с указанным email не найден
      * @throws AccessDeniedException если пароль неверен
      */
-    public UserReadDto login(UserLoginDto loginDto) {
+    public UserLoginReadDto login(UserLoginDto loginDto) {
 
         // TODO: перенести на слой выше
         ValidatorUtil.validate(loginDto);
@@ -126,7 +127,11 @@ public class UserService {
             if(!PasswordUtil.verify(loginDto.rawPassword(), foundUser.getPasswordHash())) {
                 throw new AccessDeniedException("Пароль неверен!");
             }
-            return userReadMapper.map(foundUser);
+
+            AuthContext authContext = authenticationService.createAuthContextForUser(foundUser);
+            String jwtToken = authenticationService.generateJwtToken(authContext);
+
+            return new UserLoginReadDto(userReadMapper.map(foundUser), jwtToken);
         } finally {
             em.close();
         }

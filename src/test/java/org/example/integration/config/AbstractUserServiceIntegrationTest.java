@@ -5,6 +5,7 @@ import org.example.dao.*;
 import org.example.entity.Role;
 import org.example.entity.User;
 import org.example.mapper.*;
+import org.example.service.AuthenticationService;
 import org.example.service.UserService;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -16,6 +17,7 @@ public abstract class AbstractUserServiceIntegrationTest extends AbstractIntegra
     protected RoleReadMapper roleReadMapper;
     protected UserReadMapper userReadMapper;
     protected  UserUpdateMapper userUpdateMapper;
+    protected AuthenticationService authenticationService;
 
     protected UserService userService;
 
@@ -31,7 +33,8 @@ public abstract class AbstractUserServiceIntegrationTest extends AbstractIntegra
         userUpdateMapper = new UserUpdateMapper();
 
         // Сервисы
-        userService = new UserService(sessionFactory, userDao, roleDao, userReadMapper, userUpdateMapper);
+        authenticationService = new AuthenticationService();
+        userService = new UserService(sessionFactory, authenticationService, userDao, roleDao, userReadMapper, userUpdateMapper);
 
     }
 

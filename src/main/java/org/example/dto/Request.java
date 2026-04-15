@@ -26,4 +26,8 @@ public class Request {
         this.payload = payload;
         this.headers = headers;
     }
+
+    public String getValueFromHeader(String header) {
+        return headers.get(header);
+    }
 }
