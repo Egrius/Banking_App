@@ -23,7 +23,7 @@ public class AuthenticationService {
     При первом логине: летит на сервис UserService, при успехе вызвать authService.generateJwtToken -> отправить в респонс
      */
 
-    private String jwtSecret = "/k3xZpQ6zbTOB5n9pZVXdEoUhayKH/NVC6RjmzB/3rU=";
+    private String jwtSecret = "dGhpcy1pcy1hLXNlY3VyZS1zZWNyZXQta2V5LWZvci1qd3Qtc2lnbmluZw";
 
     private int jwtExpirationMs = 86400000;
 

@@ -1,11 +1,10 @@
 package org.example.server;
 
+import java.io.IOException;
+
 public class ServerApplication {
-    // абсолютно все зависимости
 
-
-    public void start() {
-        // Необходимые параметры new Server().start();
-        // вызовется в App.java в main методе
+    public void start(ServerConfig config) throws IOException {
+        config.getServer().start();
     }
 }

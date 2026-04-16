@@ -14,9 +14,14 @@ public class FilterChain {
         return this;
     }
 
+    public FilterChain addFilterFirst(BaseRequestFilter filter) {
+        filters.addFirst(filter);
+        return this;
+    }
+
     public void execute(Request request) {
         for (BaseRequestFilter filter : filters) {
-            filter.doFilter(request);  // если ошибка — исключение
+            filter.doFilterInternal(request);  // если ошибка — исключение
         }
     }
 }

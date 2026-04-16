@@ -6,11 +6,9 @@ import org.example.dto.Request;
 import org.example.dto.Response;
 import org.example.exception.CustomValidationException;
 import org.example.exception.security_exception.AccessDeniedException;
+import org.example.server.filter_chain.FilterChain;
 import org.example.server.handler.*;
-import org.example.service.AccountService;
-import org.example.service.CardService;
-import org.example.service.RoleService;
-import org.example.service.UserService;
+import org.example.service.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,20 +16,29 @@ import java.util.Map;
 @Slf4j
 public class RequestDispatcher {
     private static final Map<String, BaseRequestHandler> handlers = new HashMap<>();
+    private final FilterChain filterChain;
 
     public RequestDispatcher(UserService userService, AccountService accountService,
-                             CardService cardService, RoleService roleService) {
+                             CardService cardService, RoleService roleService,
+                             TransactionService transactionService, FilterChain filterChain) {
+
+        this.filterChain = filterChain;
 
         handlers.put("user", new UserCommandHandler(userService));
         handlers.put("account", new AccountCommandHandler(accountService));
         handlers.put("card", new CardCommandHandler(cardService));
         handlers.put("role", new RoleCommandHandler(roleService));
-        handlers.put("transaction", new RoleCommandHandler(roleService));
+        handlers.put("transaction", new TransactionCommandHandler(transactionService));
         // handlers.put("audit",);
     }
 
     public Response dispatch(Request request) {
         try{
+
+            // Проход фильтров
+            filterChain.execute(request);
+
+            // Выполнение запроса
             String[] parts = request.getCommand().split("\\.");
 
             if (parts.length < 1) {

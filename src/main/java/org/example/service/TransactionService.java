@@ -95,10 +95,10 @@ public class TransactionService {
     private final IdempotencyService idempotencyService;
     private final AuditService auditService;
 
-    public TransactionService(AccountDao accountDao, TransactionDao transactionDao, EntityManagerFactory emf, TransactionReadMapper transactionReadMapper, IdempotencyService idempotencyService, AuditService auditService) {
+    public TransactionService(EntityManagerFactory emf, AccountDao accountDao, TransactionDao transactionDao, TransactionReadMapper transactionReadMapper, IdempotencyService idempotencyService, AuditService auditService) {
+        this.emf = emf;
         this.accountDao = accountDao;
         this.transactionDao = transactionDao;
-        this.emf = emf;
         this.transactionReadMapper = transactionReadMapper;
         this.idempotencyService = idempotencyService;
         this.auditService = auditService;

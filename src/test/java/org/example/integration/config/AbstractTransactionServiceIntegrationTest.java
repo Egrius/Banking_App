@@ -56,7 +56,7 @@ public class AbstractTransactionServiceIntegrationTest extends AbstractIntegrati
         // Сервисы (sessionFactory от родителя)
         idempotencyService = IdempotencyService.getInstance(sessionFactory, keyDao, keyReadMapper, keyCreateMapper);
         auditService = new AuditService(sessionFactory, auditDao, auditLogReadMapper);
-        transactionService = new TransactionService(accountDao, transactionDao, sessionFactory, transactionReadMapper, idempotencyService, auditService);
+        transactionService = new TransactionService(sessionFactory, accountDao, transactionDao, transactionReadMapper, idempotencyService, auditService);
     }
     /*
     Здесь дальше хэлпер-методы

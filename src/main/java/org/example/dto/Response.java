@@ -31,4 +31,13 @@ public class Response {
         return r;
     }
 
+    @Override
+    public String toString() {
+        return "Response{" +
+                "success=" + success +
+                ", statusCode=" + statusCode +
+                ", message='" + message + '\'' +
+                ", data=" + data +
+                '}';
+    }
 }
