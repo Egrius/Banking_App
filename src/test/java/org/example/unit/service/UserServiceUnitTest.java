@@ -198,12 +198,12 @@ class UserServiceUnitTest {
                 passwordUtilMock.when(() -> PasswordUtil.verify(correctLoginDto.rawPassword(), mockUser.getPasswordHash()))
                         .thenReturn(true);
 
-                UserReadDto actualResult = userService.login(correctLoginDto);
+                UserLoginReadDto actualResult = userService.login(correctLoginDto);
 
                 assertNotNull(actualResult);
-                assertEquals(mockUserReadDto.firstName(), actualResult.firstName());
-                assertEquals(mockUserReadDto.lastName(), actualResult.lastName());
-                assertEquals(mockUserReadDto.email(), actualResult.email());
+                assertEquals(mockUserReadDto.firstName(), actualResult.userReadDto().firstName());
+                assertEquals(mockUserReadDto.lastName(), actualResult.userReadDto().lastName());
+                assertEquals(mockUserReadDto.email(), actualResult.userReadDto().email());
             }
             verify(mockEm).close();
         }

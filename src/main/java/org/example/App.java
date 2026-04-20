@@ -1,56 +1,35 @@
 package org.example;
 
-
-import org.example.config.HibernateConfig;
 import org.example.server.ServerApplication;
 import org.example.server.ServerConfig;
+import org.example.service.AuditService;
+import org.example.service.IdempotencyService;
 import org.example.util.ValidatorUtil;
-import org.hibernate.HibernateException;
-import org.hibernate.Session;
-import org.hibernate.SessionFactory;
 
 import java.io.IOException;
 
-
-// TODO: Закончить компоненты, через которые проходит запрос: фильтр, диспетчер
-// TODO: Сделать AuthService
-// TODO: Сделать связку AuthService с логин методом и сделать ThreadLocal айди сессии у клиента
 
 // TODO: Написать тесты для контроллеров в связке со всей цепочкой
 // TODO: Покрыть транзакционный сервис многопоточными тестами на блокировки
 
 /*
 
-{"command":"user.register","payload":{"firstName":"John","lastName":"Doe","rawPassword":"12345","email":"john@test.com"}}
+{"command":"user.register","payload":{"type":"user.register", "firstName":"John","lastName":"Doe","rawPassword":"12345","email":"john@test.com"}}
 
  */
-
 public class App 
 {
     public static void main( String[] args ) throws IOException
     {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            ValidatorUtil.close();
+            IdempotencyService.close();
+            AuditService.shutdown();
+        }));
+
         ServerApplication serverApplication = new ServerApplication();
-        ServerConfig config = new ServerConfig(8080);
+        ServerConfig config = ServerConfig.defaultServerConfig(8080);
 
         serverApplication.start(config);
-/*
-        try (SessionFactory sessionFactory = HibernateConfig.createSessionFactory()) {
-
-            try (Session session = sessionFactory.openSession()) {
-                session.beginTransaction();
-
-                System.out.println("Hibernate работает!");
-
-                session.getTransaction().commit();
-
-            } catch (HibernateException e) {
-                throw new RuntimeException(e);
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
- */
     }
 }

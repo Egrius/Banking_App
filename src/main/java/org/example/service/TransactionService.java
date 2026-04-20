@@ -222,7 +222,7 @@ public class TransactionService {
                     .orElseThrow(() -> new EntityNotFoundException("Аккаунт получателя с id " + transactionCreateDto.toAccountId() + " не найден"));
 
             Account fromAccount = first.getId().equals(id1) ? first : second;
-            Account toAccount = fromAccount == first ? second : first;
+            Account toAccount = fromAccount.getId().equals(first.getId()) ? second : first;
 
             if(fromAccount.getStatus() == Status.BLOCKED || fromAccount.getStatus() == Status.CLOSED) {
                 throw new IllegalStateException("Нельзя выполнить транзакцию со счёта со статусом " + fromAccount.getStatus());

@@ -1,16 +1,15 @@
 package org.example.server.filter;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.Request;
 import org.example.exception.security_exception.NotAuthenticatedException;
 import org.example.security.AuthContext;
-import org.example.server.filter_chain.FilterChain;
 import org.example.service.AuthenticationService;
 
 import java.util.Set;
 
-// TODO: переделать, сделать чище, сделать реализацию чейна, чтоб он сам управлял вызовами
-
+@Slf4j
 @RequiredArgsConstructor
 public class AuthFilter extends BaseRequestFilter {
 
@@ -22,9 +21,14 @@ public class AuthFilter extends BaseRequestFilter {
     @Override
     public void doFilterInternal(Request request) {
 
+        log.debug("Request got: {}", request.getCommand());
+
         if(isExcludedURI(request.getCommand())) return;
 
-        String jwtToken = request.getValueFromHeader(JWT_TOKEN_HEADER);
+        // Убирает Bearer_
+        String jwtToken = request.getValueFromHeader(JWT_TOKEN_HEADER).substring(7);
+
+        log.debug("Jwt token got from request '{}' : {}", request.getCommand(), jwtToken);
 
         if (!authenticationService.validateJwtToken(jwtToken)) throw new NotAuthenticatedException("Неаутенцифицированный запрос. Невалидный jwt токен");
 
@@ -36,6 +40,8 @@ public class AuthFilter extends BaseRequestFilter {
             if(!authContextFromRequest.equals(authContextFromToken)) throw new IllegalStateException("Переданный контекст безопасности не совпадает с контекстом из токена");
             return;
         };
+
+        log.debug("Created auth context for request '{}', authContext user email - '{}' ", request.getCommand(), authContextFromToken.getEmail());
 
         request.setAuthContext(authContextFromToken);
     }

@@ -1,5 +1,8 @@
 package org.example.dto;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 import org.example.security.AuthContext;
@@ -9,22 +12,20 @@ import java.util.Map;
 
 @Getter
 @Setter
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class Request {
     private String command;
     private AuthContext authContext;  // токен, userId, роли
     private Map<String, String> headers;
-    private Object payload;
+    private RequestPayload payload;
 
-    public Request() {
-        this.headers = new HashMap<>();
-    }
-
-    public Request(String command) {
+    @JsonCreator
+    public Request(@JsonProperty("command") String command) {
         this.command = command;
         this.headers = new HashMap<>();
     }
 
-    public Request(String command, AuthContext authContext, Object payload, Map<String, String> headers) {
+    public Request(String command, AuthContext authContext, RequestPayload payload, Map<String, String> headers) {
         this.command = command;
         this.authContext = authContext;
         this.payload = payload;

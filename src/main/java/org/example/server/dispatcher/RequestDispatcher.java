@@ -7,7 +7,7 @@ import org.example.dto.Response;
 import org.example.exception.CustomValidationException;
 import org.example.exception.security_exception.AccessDeniedException;
 import org.example.server.filter_chain.FilterChain;
-import org.example.server.handler.*;
+import org.example.server.controller.*;
 import org.example.service.*;
 
 import java.util.HashMap;
@@ -15,7 +15,7 @@ import java.util.Map;
 
 @Slf4j
 public class RequestDispatcher {
-    private static final Map<String, BaseRequestHandler> handlers = new HashMap<>();
+    private static final Map<String, BaseController> controllers = new HashMap<>();
     private final FilterChain filterChain;
 
     public RequestDispatcher(UserService userService, AccountService accountService,
@@ -24,11 +24,11 @@ public class RequestDispatcher {
 
         this.filterChain = filterChain;
 
-        handlers.put("user", new UserCommandHandler(userService));
-        handlers.put("account", new AccountCommandHandler(accountService));
-        handlers.put("card", new CardCommandHandler(cardService));
-        handlers.put("role", new RoleCommandHandler(roleService));
-        handlers.put("transaction", new TransactionCommandHandler(transactionService));
+        controllers.put("user", new UserController(userService));
+        controllers.put("account", new AccountController(accountService));
+        controllers.put("card", new CardController(cardService));
+        controllers.put("role", new RoleController(roleService));
+        controllers.put("transaction", new TransactionController(transactionService));
         // handlers.put("audit",);
     }
 
@@ -47,7 +47,7 @@ public class RequestDispatcher {
 
             String handlerName = parts[0];
 
-            BaseRequestHandler handler = handlers.get(handlerName);
+            BaseController handler = controllers.get(handlerName);
 
             if (handler == null) {
                 return Response.error("Не найден handler для запроса " + request.getCommand(), 404);

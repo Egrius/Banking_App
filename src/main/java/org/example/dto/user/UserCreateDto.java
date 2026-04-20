@@ -1,10 +1,13 @@
 package org.example.dto.user;
 
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import org.example.dto.RequestPayload;
 import org.hibernate.validator.constraints.Length;
 
+@JsonTypeName(value = "user.register")
 public record UserCreateDto(
 
         @NotBlank(message = "Имя не может быть пустым")
@@ -18,7 +21,7 @@ public record UserCreateDto(
         @Length(min = 5, max = 100, message = "Пароль должен быть от 5 до 100 символов")
         String rawPassword,
 
-        @NotNull
+        @NotBlank
         @Email
         String email
-) { }
+) implements RequestPayload { }

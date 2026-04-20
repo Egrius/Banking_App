@@ -1,10 +1,12 @@
 package org.example.dto.user;
 
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import jakarta.validation.constraints.NotBlank;
-import org.example.annotation.PasswordMatches;
+import org.example.dto.RequestPayload;
 import org.hibernate.validator.constraints.Length;
 
-@PasswordMatches
+
+@JsonTypeName(value = "user.changePassword")
 public record PasswordChangeDto(
         @NotBlank(message = "Старый пароль обязателен")
         String oldPassword,
@@ -15,4 +17,4 @@ public record PasswordChangeDto(
 
         @NotBlank(message = "Подтверждение пароля обязательно")
         String confirmPassword
-) {}
+) implements RequestPayload {}

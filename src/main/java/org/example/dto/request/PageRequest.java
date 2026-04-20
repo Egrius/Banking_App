@@ -1,6 +1,10 @@
 package org.example.dto.request;
 
-public class PageRequest {
+import com.fasterxml.jackson.annotation.JsonTypeName;
+import org.example.dto.RequestPayload;
+
+@JsonTypeName(value = "pageRequest")
+public class PageRequest implements RequestPayload {
     private int pageNumber;
     private int pageSize;
 

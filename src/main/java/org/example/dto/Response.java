@@ -23,6 +23,14 @@ public class Response {
         return r;
     }
 
+    public static Response success(String msg) {
+        Response r = new Response();
+        r.setSuccess(true);
+        r.setStatusCode(200);
+        r.setMessage(msg);
+        return r;
+    }
+
     public static Response error(String message, int statusCode) {
         Response r = new Response();
         r.setSuccess(false);

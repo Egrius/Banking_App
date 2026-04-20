@@ -107,7 +107,7 @@ public class AuditService {
     //     // TODO: реализовать удаление старых записей
     // }
 
-    public void shutdown() {
+    public static void shutdown() {
         asyncLogPool.shutdown();
         try {
             if(!asyncLogPool.awaitTermination(3, TimeUnit.SECONDS)) asyncLogPool.shutdownNow();

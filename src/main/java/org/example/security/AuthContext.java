@@ -1,15 +1,25 @@
 package org.example.security;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.example.entity.Role;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+@Getter
+@Setter
 public class AuthContext {
     private final Long userId;
     private final String email;
     private final List<String> roles;
+
+    public AuthContext() {
+        userId = null;
+        email = null;
+        roles = null;
+    }
 
     public AuthContext(Long userId, String email, List<String> roles) {
         this.userId = userId;

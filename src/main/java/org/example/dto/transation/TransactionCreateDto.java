@@ -1,12 +1,16 @@
 package org.example.dto.transation;
 
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import jakarta.validation.constraints.NotNull;
+import org.example.dto.RequestPayload;
 import org.example.entity.enums.CurrencyCode;
 import org.hibernate.validator.constraints.Length;
 
+import javax.xml.namespace.QName;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+@JsonTypeName(value = "transaction.transfer")
 public record TransactionCreateDto(
         @NotNull(message = "Идентификатор аккаунта-отправителя не может быть пустым")
         Long fromAccountId,
@@ -25,4 +29,4 @@ public record TransactionCreateDto(
 
         @NotNull(message = "Ключ идемпотентности не может быть пустым")
         UUID idempotencyKey
-) { }
+) implements RequestPayload { }

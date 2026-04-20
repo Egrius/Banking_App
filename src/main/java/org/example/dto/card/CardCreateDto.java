@@ -1,10 +1,13 @@
 package org.example.dto.card;
 
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import org.example.dto.RequestPayload;
 import org.example.entity.enums.CardType;
 import org.example.entity.enums.CurrencyCode;
 
+@JsonTypeName(value = "card.createCard")
 public record CardCreateDto(
         @NotNull(message = "ID счета не может быть пустым")
         Long accountId,
@@ -19,4 +22,4 @@ public record CardCreateDto(
         CardType cardType,
 
         String name
-) {}
+) implements RequestPayload {}

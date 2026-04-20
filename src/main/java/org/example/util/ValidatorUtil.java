@@ -18,6 +18,9 @@ public class ValidatorUtil {
             factory.getValidator();
 
     public static <T> void validate(T object) {
+
+        System.out.println("-- Пришло в ValidatorUtil.validate() : " + object);
+
         Set<ConstraintViolation<T>> violations = validator.validate(object);
 
         if(!violations.isEmpty()) {
@@ -31,6 +34,7 @@ public class ValidatorUtil {
 
             throw new CustomValidationException(errorResponse);
         }
+
     }
 
     public static void close() {

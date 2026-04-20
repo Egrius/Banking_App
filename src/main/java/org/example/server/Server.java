@@ -13,11 +13,13 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class Server {
     private final RequestDispatcher dispatcher;
     private final int port;
+    private ServerSocket serverSocket;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     public Server(RequestDispatcher dispatcher, int port) {
@@ -26,13 +28,31 @@ public class Server {
     }
 
     public void start() throws IOException {
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
+        serverSocket = new ServerSocket(port);
             log.info("Сервер запущен на порту " + port);
             System.out.println("--- СТАРТ ---");
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 executor.submit(() -> handleClient(clientSocket));
             }
+    }
+
+    public void stop() {
+        try {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        executor.shutdown();
+        try {
+            if(!executor.awaitTermination(3, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -41,32 +61,32 @@ public class Server {
              BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), StandardCharsets.UTF_8));
              BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream(), StandardCharsets.UTF_8))) {
 
-            // 1. Читаем JSON из reader
-            // 2. Парсим в Request
-            // может быть брешь в том, что json не заканчивается на \n
+            String jsonLine;
 
-            String jsonLine = reader.readLine();
+            while ((jsonLine = reader.readLine()) != null) {
+                log.debug("Raw JSON received: '{}'", jsonLine);
 
-            log.debug("Raw JSON received: '{}'", jsonLine);
+                if (jsonLine.isBlank()) {
+                    continue;
+                }
 
-            if (jsonLine == null || jsonLine.isBlank()) {
-                log.warn("Пустой запрос от клиента");
-                return;
+                try {
+                    Request request = JsonUtil.fromJson(jsonLine, Request.class);
+
+                    Response response = dispatcher.dispatch(request);
+                    String responseJson = JsonUtil.toJson(response);
+                    writer.write(responseJson);
+                    writer.newLine();
+                    writer.flush();
+
+                } catch (Exception e) {
+                    log.error("Ошибка при обработке запроса", e);
+                    // Отправляем клиенту ошибку
+                    writer.write(JsonUtil.toJson(Response.error("Internal server error", 500)));
+                    writer.newLine();
+                    writer.flush();
+                }
             }
-
-            Request request = JsonUtil.convert(jsonLine, Request.class);
-            log.debug("Пришел запрос: {}", request);
-
-            Response response = dispatcher.dispatch(request);
-            log.debug("Получен ответ: {}", response);
-
-            // 4. Сериализуем Response в JSON
-            String responseJson = JsonUtil.toJson(response);
-
-            // 5. Пишем в writer
-            writer.write(responseJson);
-            writer.newLine();
-            writer.flush();
 
         } catch (IOException e) {
             log.error("Ошибка в ходе обработки клиента ", e);

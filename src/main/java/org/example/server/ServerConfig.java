@@ -4,6 +4,7 @@ import org.example.config.HibernateConfig;
 import org.example.dao.*;
 import org.example.mapper.*;
 import org.example.server.dispatcher.RequestDispatcher;
+import org.example.server.filter.AdminAccessFilter;
 import org.example.server.filter.AuthFilter;
 import org.example.server.filter_chain.FilterChain;
 import org.example.service.*;
@@ -48,9 +49,17 @@ public class ServerConfig {
     private final RequestDispatcher dispatcher;
     private final Server server;
 
-    public ServerConfig(int serverPort) {
+    public static ServerConfig defaultServerConfig(int port) {
+        return new ServerConfig(port, HibernateConfig.createSessionFactory());
+    }
+
+    public static ServerConfig customHibernateSessionFactoryServerConfig(int port, SessionFactory sessionFactory) {
+        return new ServerConfig(port, sessionFactory);
+    }
+
+    private ServerConfig(int serverPort, SessionFactory sessionFactory) {
         // 1. Hibernate
-        this.sessionFactory = HibernateConfig.createSessionFactory();
+        this.sessionFactory = sessionFactory;
 
         // 2. DAO
         this.accountDao = new AccountDao();
@@ -88,7 +97,8 @@ public class ServerConfig {
 
         // 5. Фильтры
         this.filterChain = new FilterChain()
-                .addFilter(new AuthFilter(authenticationService));
+                .addFilter(new AuthFilter(authenticationService))
+                .addFilter(new AdminAccessFilter());
 
         // 6. Диспатчер
         this.dispatcher = new RequestDispatcher(userService, accountService, cardService, roleService, transactionService, filterChain);
